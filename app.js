@@ -125,20 +125,24 @@ const Storage = {
 const SheetsAPI = {
     // Initialize Google API
     async initializeGapiClient() {
+        console.log('Initializing GAPI client...');
         try {
             await gapi.client.init({
                 apiKey: '', // Not needed for OAuth flow
                 discoveryDocs: [CONFIG.DISCOVERY_DOC],
             });
             AppState.gapiInited = true;
+            console.log('GAPI client initialized successfully');
             this.maybeEnableButtons();
         } catch (error) {
             console.error('Error initializing GAPI client:', error);
+            alert('Error loading Google Sheets API. Please refresh the page.');
         }
     },
 
     // Initialize Google Identity Services
     initializeGisClient() {
+        console.log('Initializing GIS client...');
         try {
             AppState.tokenClient = google.accounts.oauth2.initTokenClient({
                 client_id: CONFIG.CLIENT_ID,
@@ -146,9 +150,11 @@ const SheetsAPI = {
                 callback: '', // Will be set dynamically
             });
             AppState.gisInited = true;
+            console.log('GIS client initialized successfully');
             this.maybeEnableButtons();
         } catch (error) {
             console.error('Error initializing GIS client:', error);
+            alert('Error loading Google Sign-In. Please refresh the page.');
         }
     },
 
@@ -673,6 +679,11 @@ const UI = {
 
         // Settings
         document.getElementById('google-signin-btn').addEventListener('click', () => {
+            if (!AppState.gapiInited || !AppState.gisInited) {
+                alert('Google APIs are still loading. Please wait a moment and try again.');
+                console.log('API Status:', { gapiInited: AppState.gapiInited, gisInited: AppState.gisInited });
+                return;
+            }
             SheetsAPI.handleAuthClick();
         });
 
@@ -854,9 +865,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // Initialize Google APIs when loaded
 window.gapiLoaded = () => {
+    console.log('gapiLoaded callback called');
     gapi.load('client', () => SheetsAPI.initializeGapiClient());
 };
 
 window.gisLoaded = () => {
+    console.log('gisLoaded callback called');
     SheetsAPI.initializeGisClient();
 };
+
+// Log when scripts are loaded
+console.log('App.js loaded. Waiting for Google APIs...');
