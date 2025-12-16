@@ -127,12 +127,12 @@
         </main>
     </div>
 
-    <!-- Google API Scripts -->
-    <script src="https://accounts.google.com/gsi/client" async defer></script>
-    <script src="https://apis.google.com/js/api.js" async defer></script>
-
     <!-- App Scripts -->
     <script src="data.js"></script>
     <script src="app.js"></script>
+
+    <!-- Google API Scripts - Load after app -->
+    <script src="https://accounts.google.com/gsi/client" async defer onload="gisLoaded()"></script>
+    <script src="https://apis.google.com/js/api.js" async defer onload="gapiLoaded()"></script>
 </body>
 </html>
