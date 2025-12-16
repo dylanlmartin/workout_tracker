@@ -1,6 +1,7 @@
 /**
  * Workout Tracker Application
  * Main application logic with Google Sheets integration
+ * Updated with full workout view - all exercises visible at once
  */
 
 // ==================== STATE MANAGEMENT ====================
@@ -8,8 +9,6 @@
 const AppState = {
     currentView: 'home',
     currentWorkout: null,
-    currentExerciseIndex: 0,
-    currentSetIndex: 0,
     workoutData: [],
     workoutStartTime: null,
     isTimerRunning: false,
@@ -20,7 +19,8 @@ const AppState = {
     gapiInited: false,
     gisInited: false,
     tokenClient: null,
-    sheetId: null
+    sheetId: null,
+    activeExerciseIndex: null
 };
 
 // ==================== LOCAL STORAGE ====================
@@ -354,82 +354,130 @@ const UI = {
         AppState.currentView = viewName;
     },
 
-    // Update exercise display
-    updateExerciseDisplay() {
+    // Render full workout view with all exercises
+    renderFullWorkout() {
         const workout = getWorkout(AppState.currentWorkout);
-        const exercise = workout.exercises[AppState.currentExerciseIndex];
-        const currentSet = AppState.currentSetIndex + 1;
+        const previousWorkout = Storage.getPreviousWorkout(AppState.currentWorkout);
 
         document.getElementById('workout-title').textContent = workout.name;
         document.getElementById('workout-progress').textContent =
-            `Exercise ${AppState.currentExerciseIndex + 1} of ${workout.exercises.length}`;
+            `${workout.exercises.length} exercises`;
 
-        document.getElementById('exercise-name').textContent = exercise.name;
-        document.getElementById('exercise-notes').textContent = exercise.notes || '';
-        document.getElementById('current-set').textContent = currentSet;
-        document.getElementById('total-sets').textContent = exercise.sets;
-        document.getElementById('target-reps').textContent = exercise.reps;
+        const container = document.getElementById('exercises-list');
+        container.innerHTML = '';
 
-        // Show superset indicator if applicable
-        const supersetIndicator = document.getElementById('superset-indicator');
+        workout.exercises.forEach((exercise, exerciseIndex) => {
+            const exerciseCard = this.createExerciseCard(exercise, exerciseIndex, previousWorkout);
+            container.appendChild(exerciseCard);
+        });
+    },
+
+    // Create an exercise card element
+    createExerciseCard(exercise, exerciseIndex, previousWorkout) {
+        const card = document.createElement('div');
+        card.className = 'exercise-card';
+        card.dataset.exerciseIndex = exerciseIndex;
+        if (exercise.superset) card.classList.add('superset');
+
+        // Get previous data for this exercise
+        const previousExercise = previousWorkout?.exercises.find(e => e.name === exercise.name);
+
+        let html = '<div class="exercise-header">';
+        html += `<h3>${exercise.name}</h3>`;
+        if (exercise.category) {
+            html += `<span class="exercise-badge ${exercise.category}">${exercise.category}</span>`;
+        }
+        html += '</div>';
+
+        html += `<div class="exercise-meta">${exercise.sets} sets × ${exercise.reps} reps • ${exercise.rest}s rest</div>`;
+
         if (exercise.superset) {
-            supersetIndicator.textContent = `⚡ Superset with ${exercise.superset}`;
-            supersetIndicator.classList.add('active');
-        } else {
-            supersetIndicator.classList.remove('active');
+            html += `<span class="superset-indicator">⚡ Superset with ${exercise.superset}</span>`;
         }
 
-        // Load previous performance
-        this.displayPreviousPerformance(exercise.name);
-
-        // Pre-fill inputs from previous set if available
-        this.prefillInputs(exercise.name);
-
-        // Show finish button if on last set of last exercise
-        const isLastExercise = AppState.currentExerciseIndex === workout.exercises.length - 1;
-        const isLastSet = currentSet === exercise.sets;
-        const finishBtn = document.getElementById('finish-workout-btn');
-
-        if (isLastExercise && isLastSet) {
-            finishBtn.classList.remove('hidden');
-        } else {
-            finishBtn.classList.add('hidden');
+        if (exercise.notes) {
+            html += `<div class="exercise-notes">${exercise.notes}</div>`;
         }
+
+        // Previous performance
+        if (previousExercise) {
+            const prevDate = new Date(previousWorkout.date).toLocaleDateString();
+            html += '<div class="previous-performance">';
+            html += `<h4>Last: ${prevDate}</h4>`;
+            previousExercise.sets.forEach(set => {
+                html += `<div>${set.reps} × ${set.weight} lbs</div>`;
+            });
+            html += '</div>';
+        }
+
+        // Sets grid
+        html += '<div class="sets-grid">';
+        for (let setNum = 1; setNum <= exercise.sets; setNum++) {
+            const prevSet = previousExercise?.sets[setNum - 1];
+            const prevWeight = prevSet ? prevSet.weight : '';
+
+            html += `<div class="set-row" data-set="${setNum}">`;
+            html += `<div class="set-number">Set ${setNum}</div>`;
+            html += `<input type="number"
+                           class="reps-input"
+                           placeholder="Reps"
+                           inputmode="numeric"
+                           min="0"
+                           data-set="${setNum}">`;
+            html += `<input type="number"
+                           class="weight-input"
+                           placeholder="Weight"
+                           value="${prevWeight}"
+                           inputmode="decimal"
+                           step="2.5"
+                           min="0"
+                           data-set="${setNum}">`;
+            html += `<div class="set-check">
+                       <input type="checkbox"
+                              class="set-checkbox"
+                              data-set="${setNum}">
+                     </div>`;
+            html += '</div>';
+        }
+        html += '</div>';
+
+        card.innerHTML = html;
+
+        // Attach event listeners to checkboxes
+        card.querySelectorAll('.set-checkbox').forEach(checkbox => {
+            checkbox.addEventListener('change', (e) => {
+                WorkoutController.handleSetComplete(exerciseIndex, parseInt(e.target.dataset.set));
+            });
+        });
+
+        return card;
     },
 
-    // Display previous performance
-    displayPreviousPerformance(exerciseName) {
-        const container = document.getElementById('previous-performance');
-        const previousData = Storage.getPreviousExerciseData(AppState.currentWorkout, exerciseName);
+    // Update exercise card completion status
+    updateExerciseCard(exerciseIndex) {
+        const card = document.querySelector(`[data-exercise-index="${exerciseIndex}"]`);
+        const exerciseData = AppState.workoutData[exerciseIndex];
+        const workout = getWorkout(AppState.currentWorkout);
+        const exercise = workout.exercises[exerciseIndex];
 
-        if (!previousData) {
-            container.innerHTML = '<p style="color: var(--text-secondary); font-size: 14px;">No previous data</p>';
-            return;
+        // Check if all sets are completed
+        if (exerciseData.sets.length === exercise.sets) {
+            card.classList.add('completed');
         }
 
-        const previousWorkout = Storage.getPreviousWorkout(AppState.currentWorkout);
-        const date = new Date(previousWorkout.date).toLocaleDateString();
-
-        let html = `<h4>Last workout (${date}):</h4>`;
-        html += previousData.sets.map(set => `
-            <div class="set-row">
-                <span>Set ${set.setNumber}:</span>
-                <span>${set.reps} reps @ ${set.weight} lbs</span>
-            </div>
-        `).join('');
-
-        container.innerHTML = html;
+        // Update progress
+        this.updateWorkoutProgress();
     },
 
-    // Prefill input fields
-    prefillInputs(exerciseName) {
-        const previousData = Storage.getPreviousExerciseData(AppState.currentWorkout, exerciseName);
+    // Update overall workout progress
+    updateWorkoutProgress() {
+        const workout = getWorkout(AppState.currentWorkout);
+        const completedExercises = AppState.workoutData.filter(e =>
+            e.sets.length === workout.exercises.find(ex => ex.name === e.name).sets
+        ).length;
 
-        if (previousData && previousData.sets.length > AppState.currentSetIndex) {
-            const previousSet = previousData.sets[AppState.currentSetIndex];
-            document.getElementById('weight-input').value = previousSet.weight;
-            // Don't prefill reps - user should enter what they actually did
-        }
+        document.getElementById('workout-progress').textContent =
+            `${completedExercises}/${workout.exercises.length} exercises completed`;
     },
 
     // Start rest timer
@@ -477,7 +525,7 @@ const UI = {
     // Play alert sound (browser notification)
     playTimerAlert() {
         // Play system beep
-        const audio = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBSuBzvLZiTYIG2m98OScTgwNUKvi77JlHAU7k9n0y38qBSd6y/HajDwHElyx6OyrWBUIR6Ll8r1mIwUufM/13I0+CBlntOvnsVkWCkeh4fG5ZB4FO5La8sp+KgUng8rx2Yk0CBhqvO/knE0MDFCr4u+wYhsFOpPZ9Mp/KgUngsvw2Ik1CBdpvO7kmkwNDVCt5O+vYBkFN5Db88p9KQUlgc7w2Ik1CBhpvO3jmUsODk6s5/CsXhgFNpHa88p9KQUlgc7w2Ik1CBhpvO3jmUsODk6s5/CsXhgFNpHa88p9KQUlgc7w2Ik1CBhpvO3jmUsODk6s5/CsXhgFNpHa88p9KQUlgc7w2Ik1CBhpvO3jmUsODk6s5/CsXhgFNpHa88p9KQUlgc7w2Ik1CBhpvO3jmUsODk6s5/CsXhgFNpHa88p9KQUlgc7w2Ik1CBhpvO3jmUsODk6s5/CsXhgFNpHa88p9KQUlgc7w2Ik1CBhpvO3jmUsODk6s5/CsXhgFNpHa88p9KQUlgc7w2Ik1CBhpvO3jmUsODk6s5/CsXhgFNpHa88p9KQUlgc7w2Ik1CBhpvO3jmUsODk6s5/CsXhgFNpHa88p9KQUlgc7w2Ik1CBhpvO3jmUsODk6s5/CsXhgFNpHa88p9KQUlgc7w2Ik1CBhpvO3jmUsODk6s5/CsXhgFNpHa88p9KQUlgc7w2Ik1CBhpvO3jmUsODk6s5/CsXhgFNpHa88p9KQUlgc7w2Ik1CBhpvO3jmUsO');
+        const audio = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBSuBzvLZiTYIG2m98OScTgwNUKvi77JlHAU7k9n0y38qBSd6y/HajDwHElyx6OyrWBUIR6Ll8r1mIwUufM/13I0+CBlntOvnsVkWCkeh4fG5ZB4FO5La8sp+KgUng8rx2Yk0CBhqvO/knE0MDFCr4u+wYhsFOpPZ9Mp/KgUngsvw2Ik1CBdpvO7kmkwNDVCt5O+vYBkFN5Db88p9KQUlgc7w2Ik1CBhpvO3jmUsODk6s5/CsXhgFNpHa88p9KQUlgc7w2Ik1CBhpvO3jmUsODk6s5/CsXhgFNpHa88p9KQUlgc7w2Ik1CBhpvO3jmUsODk6s5/CsXhgFNpHa88p9KQUlgc7w2Ik1CBhpvO3jmUsODk6s5/CsXhgFNpHa88p9KQUlgc7w2Ik1CBhpvO3jmUsODk6s5/CsXhgFNpHa88p9KQUlgc7w2Ik1CBhpvO3jmUsODk6s5/CsXhgFNpHa88p9KQUlgc7w2Ik1CBhpvO3jmUsODk6s5/CsXhgFNpHa88p9KQUlgc7w2Ik1CBhpvO3jmUsODk6s5/CsXhgFNpHa88p9KQUlgc7w2Ik1CBhpvO3jmUsODk6s5/CsXhgFNpHa88p9KQUlgc7w2Ik1CBhpvO3jmUsODk6s5/CsXhgFNpHa88p9KQUlgc7w2Ik1CBhpvO3jmUsODk6s5/CsXhgFNpHa88p9KQUlgc7w2Ik1CBhpvO3jmUsO');
         audio.play().catch(e => console.log('Could not play sound'));
     },
 
@@ -600,11 +648,6 @@ const UI = {
             }
         });
 
-        // Complete set button
-        document.getElementById('complete-set-btn').addEventListener('click', () => {
-            WorkoutController.completeSet();
-        });
-
         // Finish workout button
         document.getElementById('finish-workout-btn').addEventListener('click', () => {
             WorkoutController.finishWorkout();
@@ -613,10 +656,10 @@ const UI = {
         // Timer controls
         document.getElementById('pause-timer-btn').addEventListener('click', () => {
             if (AppState.isTimerRunning) {
-                this.stopRestTimer();
+                UI.stopRestTimer();
                 document.getElementById('pause-timer-btn').textContent = 'Resume';
             } else {
-                this.startRestTimer(AppState.remainingTime);
+                UI.startRestTimer(AppState.remainingTime);
                 document.getElementById('pause-timer-btn').textContent = 'Pause';
             }
         });
@@ -649,19 +692,6 @@ const UI = {
         document.getElementById('save-config-btn').addEventListener('click', () => {
             this.saveConfig();
         });
-
-        // Enter key on inputs
-        document.getElementById('reps-input').addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') {
-                document.getElementById('weight-input').focus();
-            }
-        });
-
-        document.getElementById('weight-input').addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') {
-                WorkoutController.completeSet();
-            }
-        });
     }
 };
 
@@ -671,8 +701,6 @@ const WorkoutController = {
     // Start a new workout
     startWorkout(workoutId) {
         AppState.currentWorkout = workoutId;
-        AppState.currentExerciseIndex = 0;
-        AppState.currentSetIndex = 0;
         AppState.workoutData = [];
         AppState.workoutStartTime = Date.now();
 
@@ -688,94 +716,99 @@ const WorkoutController = {
         });
 
         UI.switchView('workout');
-        UI.updateExerciseDisplay();
-
-        // Focus on reps input
-        document.getElementById('reps-input').focus();
+        UI.renderFullWorkout();
     },
 
-    // Complete current set
-    completeSet() {
-        const reps = parseInt(document.getElementById('reps-input').value);
-        const weight = parseFloat(document.getElementById('weight-input').value) || 0;
+    // Handle set completion (checkbox clicked)
+    handleSetComplete(exerciseIndex, setNumber) {
+        const card = document.querySelector(`[data-exercise-index="${exerciseIndex}"]`);
+        const setRow = card.querySelector(`.set-row[data-set="${setNumber}"]`);
+        const checkbox = setRow.querySelector('.set-checkbox');
+        const repsInput = setRow.querySelector('.reps-input');
+        const weightInput = setRow.querySelector('.weight-input');
 
+        const reps = parseInt(repsInput.value);
+        const weight = parseFloat(weightInput.value) || 0;
+
+        if (!checkbox.checked) {
+            // Unchecking - remove this set from data
+            const exerciseData = AppState.workoutData[exerciseIndex];
+            exerciseData.sets = exerciseData.sets.filter(s => s.setNumber !== setNumber);
+            setRow.classList.remove('completed');
+
+            // Enable inputs
+            repsInput.disabled = false;
+            weightInput.disabled = false;
+            return;
+        }
+
+        // Validate inputs
         if (!reps || reps <= 0) {
             alert('Please enter number of reps completed.');
+            checkbox.checked = false;
             return;
         }
 
         const workout = getWorkout(AppState.currentWorkout);
-        const exercise = workout.exercises[AppState.currentExerciseIndex];
+        const exercise = workout.exercises[exerciseIndex];
 
         // Save set data
         const setData = {
-            setNumber: AppState.currentSetIndex + 1,
+            setNumber: setNumber,
             reps: reps,
             weight: weight,
             completed: true
         };
 
-        AppState.workoutData[AppState.currentExerciseIndex].sets.push(setData);
+        // Add to workout data (maintain order by set number)
+        const exerciseData = AppState.workoutData[exerciseIndex];
+        exerciseData.sets = exerciseData.sets.filter(s => s.setNumber !== setNumber);
+        exerciseData.sets.push(setData);
+        exerciseData.sets.sort((a, b) => a.setNumber - b.setNumber);
+
+        // Mark row as completed
+        setRow.classList.add('completed');
+
+        // Disable inputs
+        repsInput.disabled = true;
+        weightInput.disabled = true;
 
         // Log to Google Sheets if authenticated
         if (AppState.isAuthenticated) {
             SheetsAPI.logSet(
                 AppState.currentWorkout,
                 exercise.name,
-                setData.setNumber,
+                setNumber,
                 reps,
                 weight,
                 exercise.rest
             );
         }
 
-        // Clear inputs
-        document.getElementById('reps-input').value = '';
-        document.getElementById('weight-input').value = '';
+        // Update UI
+        UI.updateExerciseCard(exerciseIndex);
 
-        // Move to next set or exercise
-        AppState.currentSetIndex++;
-
-        if (AppState.currentSetIndex >= exercise.sets) {
-            // Move to next exercise
-            this.moveToNextExercise();
-        } else {
-            // Start rest timer and update display
-            UI.startRestTimer(exercise.rest);
-            UI.updateExerciseDisplay();
-
-            // Focus on reps input after timer
-            setTimeout(() => {
-                document.getElementById('reps-input').focus();
-            }, exercise.rest * 1000);
-        }
-    },
-
-    // Move to next exercise
-    moveToNextExercise() {
-        const workout = getWorkout(AppState.currentWorkout);
-
-        AppState.currentExerciseIndex++;
-        AppState.currentSetIndex = 0;
-
-        if (AppState.currentExerciseIndex >= workout.exercises.length) {
-            // Workout complete
-            this.finishWorkout();
-        } else {
-            UI.updateExerciseDisplay();
-            document.getElementById('reps-input').focus();
-        }
+        // Start rest timer
+        UI.startRestTimer(exercise.rest);
     },
 
     // Finish workout
     finishWorkout() {
         const duration = Math.round((Date.now() - AppState.workoutStartTime) / 1000); // seconds
 
+        // Filter out exercises with no completed sets
+        const completedExercises = AppState.workoutData.filter(e => e.sets.length > 0);
+
+        if (completedExercises.length === 0) {
+            alert('No exercises completed. Cannot finish workout.');
+            return;
+        }
+
         const workoutLog = {
             id: Date.now().toString(),
             date: new Date().toISOString(),
             workoutType: AppState.currentWorkout,
-            exercises: AppState.workoutData,
+            exercises: completedExercises,
             duration: duration,
             completed: true
         };
@@ -790,11 +823,11 @@ const WorkoutController = {
                 AppState.currentWorkout,
                 volume,
                 duration,
-                AppState.workoutData.length
+                completedExercises.length
             );
         }
 
-        alert(`Workout complete! Duration: ${Math.round(duration / 60)} minutes`);
+        alert(`Workout complete!\nDuration: ${Math.round(duration / 60)} minutes\nExercises: ${completedExercises.length}`);
 
         // Reset and go home
         this.cancelWorkout();
@@ -803,8 +836,6 @@ const WorkoutController = {
     // Cancel workout
     cancelWorkout() {
         AppState.currentWorkout = null;
-        AppState.currentExerciseIndex = 0;
-        AppState.currentSetIndex = 0;
         AppState.workoutData = [];
         UI.stopRestTimer();
         UI.switchView('home');
