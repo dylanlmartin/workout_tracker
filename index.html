@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#1a1a1a">
+    <meta name="description" content="Workout tracking app for 4-day Upper/Lower split with Google Sheets sync">
+    <title>Workout Tracker</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="manifest" href="manifest.json">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>💪</text></svg>">
+</head>
+<body>
+    <div id="app">
+        <!-- Header -->
+        <header id="header">
+            <h1>Workout Tracker</h1>
+            <div id="sync-status" class="sync-status">
+                <span id="sync-indicator"></span>
+            </div>
+        </header>
+
+        <!-- Navigation -->
+        <nav id="bottom-nav" class="bottom-nav">
+            <button class="nav-btn active" data-view="home">
+                <span class="icon">🏠</span>
+                <span>Home</span>
+            </button>
+            <button class="nav-btn" data-view="history">
+                <span class="icon">📊</span>
+                <span>History</span>
+            </button>
+            <button class="nav-btn" data-view="settings">
+                <span class="icon">⚙️</span>
+                <span>Settings</span>
+            </button>
+        </nav>
+
+        <!-- Main Content Area -->
+        <main id="main-content">
+            <!-- Home View: Workout Selection -->
+            <div id="home-view" class="view active">
+                <div class="workout-grid">
+                    <!-- Workouts will be dynamically inserted here -->
+                </div>
+            </div>
+
+            <!-- Active Workout View -->
+            <div id="workout-view" class="view">
+                <div class="workout-header">
+                    <button id="back-btn" class="back-btn">← Back</button>
+                    <h2 id="workout-title"></h2>
+                    <div id="workout-progress"></div>
+                </div>
+
+                <div id="exercise-container" class="exercise-container">
+                    <!-- Current exercise details -->
+                    <div class="exercise-card">
+                        <h3 id="exercise-name"></h3>
+                        <p id="exercise-notes" class="exercise-notes"></p>
+                        <div id="superset-indicator" class="superset-indicator"></div>
+
+                        <!-- Previous performance -->
+                        <div id="previous-performance" class="previous-performance"></div>
+
+                        <!-- Current set info -->
+                        <div class="set-info">
+                            <div class="set-counter">
+                                <span>Set </span>
+                                <span id="current-set">1</span>
+                                <span> of </span>
+                                <span id="total-sets">4</span>
+                            </div>
+                            <div class="target-reps">
+                                Target: <span id="target-reps">8-12</span> reps
+                            </div>
+                        </div>
+
+                        <!-- Input form -->
+                        <div class="set-input">
+                            <div class="input-group">
+                                <label for="reps-input">Reps</label>
+                                <input type="number" id="reps-input" inputmode="numeric" min="0" max="100">
+                            </div>
+                            <div class="input-group">
+                                <label for="weight-input">Weight (lbs)</label>
+                                <input type="number" id="weight-input" inputmode="decimal" min="0" max="1000" step="2.5">
+                            </div>
+                        </div>
+
+                        <button id="complete-set-btn" class="btn-primary">Complete Set</button>
+                    </div>
+
+                    <!-- Rest Timer -->
+                    <div id="rest-timer" class="rest-timer hidden">
+                        <div class="timer-display">
+                            <div class="timer-label">Rest Time</div>
+                            <div id="timer-countdown" class="timer-countdown">0:00</div>
+                            <div class="timer-progress">
+                                <div id="timer-progress-bar" class="timer-progress-bar"></div>
+                            </div>
+                        </div>
+                        <div class="timer-controls">
+                            <button id="pause-timer-btn" class="btn-secondary">Pause</button>
+                            <button id="skip-rest-btn" class="btn-secondary">Skip Rest</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Finish Workout Button -->
+                <div class="workout-footer">
+                    <button id="finish-workout-btn" class="btn-finish hidden">Finish Workout</button>
+                </div>
+            </div>
+
+            <!-- History View -->
+            <div id="history-view" class="view">
+                <h2>Workout History</h2>
+                <div id="history-list" class="history-list">
+                    <!-- History items will be dynamically inserted -->
+                </div>
+            </div>
+
+            <!-- Settings View -->
+            <div id="settings-view" class="view">
+                <h2>Settings</h2>
+
+                <div class="settings-section">
+                    <h3>Google Sheets Sync</h3>
+                    <div id="auth-status" class="auth-status">
+                        <p>Status: <span id="auth-status-text">Not connected</span></p>
+                    </div>
+                    <button id="google-signin-btn" class="btn-primary">Connect to Google Sheets</button>
+                    <button id="google-signout-btn" class="btn-secondary hidden">Disconnect</button>
+                </div>
+
+                <div class="settings-section">
+                    <h3>Theme</h3>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="theme-toggle">
+                        <span class="toggle-slider"></span>
+                        <span class="toggle-label">Dark Mode</span>
+                    </label>
+                </div>
+
+                <div class="settings-section">
+                    <h3>Data</h3>
+                    <button id="export-data-btn" class="btn-secondary">Export to CSV</button>
+                    <button id="clear-data-btn" class="btn-danger">Clear All Data</button>
+                </div>
+
+                <div class="settings-section">
+                    <h3>Configuration</h3>
+                    <div class="config-info">
+                        <p><strong>Sheet ID:</strong></p>
+                        <input type="text" id="sheet-id-input" class="config-input" placeholder="Enter Google Sheet ID">
+                        <button id="save-config-btn" class="btn-secondary">Save Configuration</button>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Google API Scripts -->
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <script src="https://apis.google.com/js/api.js" async defer></script>
+
+    <!-- App Scripts -->
+    <script src="data.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
