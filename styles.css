@@ -384,8 +384,8 @@ body {
 
 .set-row {
     display: grid;
-    grid-template-columns: 50px 1fr 1fr 80px;
-    gap: var(--spacing-sm);
+    grid-template-columns: minmax(35px, 45px) minmax(60px, 1fr) minmax(60px, 1fr) minmax(40px, 50px);
+    gap: var(--spacing-xs);
     align-items: center;
     padding: var(--spacing-sm);
     background-color: var(--bg-primary);
@@ -406,14 +406,15 @@ body {
 }
 
 .set-row input {
-    padding: var(--spacing-sm);
+    padding: var(--spacing-xs) var(--spacing-sm);
     border: 1px solid var(--border);
     border-radius: var(--radius-sm);
-    font-size: var(--font-size-md);
+    font-size: var(--font-size-sm);
     background-color: var(--bg-secondary);
     color: var(--text-primary);
     text-align: center;
     font-weight: 600;
+    min-width: 0;
 }
 
 .set-row input:focus {
@@ -686,6 +687,27 @@ body {
 .mb-1 { margin-bottom: var(--spacing-md); }
 
 /* ===== Responsive Design ===== */
+@media (max-width: 480px) {
+    .set-row {
+        padding: 6px;
+        gap: 4px;
+    }
+
+    .set-number {
+        font-size: clamp(11px, 2.5vw, 14px);
+    }
+
+    .set-row input {
+        font-size: clamp(12px, 3vw, 14px);
+        padding: 6px 4px;
+    }
+
+    .set-check input[type="checkbox"] {
+        width: 20px;
+        height: 20px;
+    }
+}
+
 @media (min-width: 768px) {
     #main-content {
         max-width: 1200px;

@@ -417,25 +417,28 @@ const UI = {
             const prevWeight = prevSet ? prevSet.weight : '';
 
             html += `<div class="set-row" data-set="${setNum}">`;
-            html += `<div class="set-number">Set ${setNum}</div>`;
+            html += `<div class="set-number">${setNum}</div>`;
             html += `<input type="number"
                            class="reps-input"
                            placeholder="Reps"
                            inputmode="numeric"
                            min="0"
-                           data-set="${setNum}">`;
+                           data-set="${setNum}"
+                           aria-label="Reps for set ${setNum}">`;
             html += `<input type="number"
                            class="weight-input"
-                           placeholder="Weight"
+                           placeholder="lbs"
                            value="${prevWeight}"
                            inputmode="decimal"
                            step="2.5"
                            min="0"
-                           data-set="${setNum}">`;
+                           data-set="${setNum}"
+                           aria-label="Weight for set ${setNum}">`;
             html += `<div class="set-check">
                        <input type="checkbox"
                               class="set-checkbox"
-                              data-set="${setNum}">
+                              data-set="${setNum}"
+                              aria-label="Complete set ${setNum}">
                      </div>`;
             html += '</div>';
         }
