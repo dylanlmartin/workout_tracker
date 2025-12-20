@@ -32,7 +32,8 @@ const Storage = {
     KEYS: {
         WORKOUTS: 'workout_tracker_workouts',
         CONFIG: 'workout_tracker_config',
-        THEME: 'workout_tracker_theme'
+        THEME: 'workout_tracker_theme',
+        GOOGLE_TOKEN: 'workout_tracker_google_token'
     },
 
     // Save workout log
@@ -95,6 +96,22 @@ const Storage = {
     getBodyweightMode() {
         const mode = localStorage.getItem('workout_tracker_bodyweight_mode');
         return mode === 'true';
+    },
+
+    // Save Google OAuth token
+    saveGoogleToken(token) {
+        localStorage.setItem(this.KEYS.GOOGLE_TOKEN, JSON.stringify(token));
+    },
+
+    // Get Google OAuth token
+    getGoogleToken() {
+        const data = localStorage.getItem(this.KEYS.GOOGLE_TOKEN);
+        return data ? JSON.parse(data) : null;
+    },
+
+    // Clear Google OAuth token
+    clearGoogleToken() {
+        localStorage.removeItem(this.KEYS.GOOGLE_TOKEN);
     },
 
     // Clear all data
@@ -175,7 +192,16 @@ const SheetsAPI = {
     // Enable auth buttons when both APIs are ready
     maybeEnableButtons() {
         if (AppState.gapiInited && AppState.gisInited) {
-            UI.updateAuthStatus(false);
+            // Try to restore saved token
+            const savedToken = Storage.getGoogleToken();
+            if (savedToken) {
+                gapi.client.setToken(savedToken);
+                AppState.isAuthenticated = true;
+                UI.updateAuthStatus(true);
+                console.log('Restored saved Google token');
+            } else {
+                UI.updateAuthStatus(false);
+            }
         }
     },
 
@@ -185,6 +211,13 @@ const SheetsAPI = {
             if (resp.error !== undefined) {
                 throw (resp);
             }
+
+            // Save the token to localStorage for persistence
+            const token = gapi.client.getToken();
+            if (token) {
+                Storage.saveGoogleToken(token);
+            }
+
             AppState.isAuthenticated = true;
             UI.updateAuthStatus(true);
             UI.setSyncStatus('synced');
@@ -208,10 +241,21 @@ const SheetsAPI = {
         if (token !== null) {
             google.accounts.oauth2.revoke(token.access_token);
             gapi.client.setToken('');
+            Storage.clearGoogleToken(); // Clear saved token
             AppState.isAuthenticated = false;
             UI.updateAuthStatus(false);
             UI.setSyncStatus('offline');
         }
+    },
+
+    // Handle expired token
+    handleExpiredToken() {
+        console.log('Token expired, clearing authentication');
+        gapi.client.setToken('');
+        Storage.clearGoogleToken();
+        AppState.isAuthenticated = false;
+        UI.updateAuthStatus(false);
+        UI.setSyncStatus('offline');
     },
 
     // Read data from a sheet range
@@ -226,6 +270,10 @@ const SheetsAPI = {
             return response.result.values || [];
         } catch (error) {
             console.error('Error reading from sheet:', error);
+            // Check if token expired (401 error)
+            if (error.status === 401) {
+                this.handleExpiredToken();
+            }
             return null;
         }
     },
@@ -248,6 +296,10 @@ const SheetsAPI = {
             return true;
         } catch (error) {
             console.error('Error appending to sheet:', error);
+            // Check if token expired (401 error)
+            if (error.status === 401) {
+                this.handleExpiredToken();
+            }
             UI.setSyncStatus('offline');
             return false;
         }
