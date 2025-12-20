@@ -20,7 +20,9 @@ const AppState = {
     gisInited: false,
     tokenClient: null,
     sheetId: null,
-    activeExerciseIndex: null
+    activeExerciseIndex: null,
+    substitutions: {}, // Tracks exercise substitutions {exerciseIndex: substitutedName}
+    currentSubstitutionExercise: null // Currently viewing substitutions for this exercise
 };
 
 // ==================== LOCAL STORAGE ====================
@@ -385,11 +387,20 @@ const UI = {
         card.dataset.exerciseIndex = exerciseIndex;
         if (exercise.superset) card.classList.add('superset');
 
-        // Get previous data for this exercise
+        // Check if this exercise has been substituted
+        const substitutedName = AppState.substitutions[exerciseIndex];
+        const displayName = substitutedName || exercise.name;
+        const isSubstituted = !!substitutedName;
+
+        if (isSubstituted) {
+            card.classList.add('substituted');
+        }
+
+        // Get previous data for this exercise (use original name for history)
         const previousExercise = previousWorkout?.exercises.find(e => e.name === exercise.name);
 
         let html = '<div class="exercise-header">';
-        html += `<h3>${exercise.name}</h3>`;
+        html += `<h3>${displayName}</h3>`;
         if (exercise.category) {
             html += `<span class="exercise-badge ${exercise.category}">${exercise.category}</span>`;
         }
@@ -403,6 +414,13 @@ const UI = {
 
         if (exercise.notes) {
             html += `<div class="exercise-notes">${exercise.notes}</div>`;
+        }
+
+        // Substitution button (only show if substitutions are available)
+        if (hasSubstitutions(exercise.name)) {
+            html += `<button class="btn-substitute" data-exercise-index="${exerciseIndex}">
+                        ↔️ Substitute Exercise
+                    </button>`;
         }
 
         // Previous performance
@@ -458,6 +476,14 @@ const UI = {
                 WorkoutController.handleSetComplete(exerciseIndex, parseInt(e.target.dataset.set));
             });
         });
+
+        // Attach event listener to substitution button
+        const substituteBtn = card.querySelector('.btn-substitute');
+        if (substituteBtn) {
+            substituteBtn.addEventListener('click', () => {
+                SubstitutionController.openSubstitutionModal(exerciseIndex, exercise.name);
+            });
+        }
 
         return card;
     },
@@ -706,6 +732,134 @@ const UI = {
         document.getElementById('save-config-btn').addEventListener('click', () => {
             this.saveConfig();
         });
+
+        // Substitution modal
+        document.getElementById('close-substitution-modal').addEventListener('click', () => {
+            SubstitutionController.closeSubstitutionModal();
+        });
+
+        document.getElementById('cancel-substitution').addEventListener('click', () => {
+            SubstitutionController.closeSubstitutionModal();
+        });
+
+        document.getElementById('reset-exercise').addEventListener('click', () => {
+            SubstitutionController.resetToOriginal();
+        });
+
+        // Click outside modal to close
+        document.getElementById('substitution-modal').addEventListener('click', (e) => {
+            if (e.target.id === 'substitution-modal') {
+                SubstitutionController.closeSubstitutionModal();
+            }
+        });
+
+        // Handle substitution selection (apply immediately when radio button is clicked)
+        document.addEventListener('change', (e) => {
+            if (e.target.name === 'substitution') {
+                SubstitutionController.applySubstitution();
+            }
+        });
+    }
+};
+
+// ==================== SUBSTITUTION CONTROLLER ====================
+
+const SubstitutionController = {
+    // Open substitution modal for an exercise
+    openSubstitutionModal(exerciseIndex, originalExerciseName) {
+        AppState.currentSubstitutionExercise = exerciseIndex;
+
+        const substitutions = getSubstitutions(originalExerciseName);
+        if (!substitutions) {
+            alert('No substitutions available for this exercise.');
+            return;
+        }
+
+        const modal = document.getElementById('substitution-modal');
+        const originalExerciseDiv = document.getElementById('original-exercise');
+        const notesDiv = document.getElementById('substitution-notes');
+        const avoidDiv = document.getElementById('avoid-section');
+        const optionsDiv = document.getElementById('substitution-options');
+
+        // Show original exercise
+        const currentSubstitution = AppState.substitutions[exerciseIndex];
+        originalExerciseDiv.innerHTML = `<strong>Original:</strong> ${originalExerciseName}${currentSubstitution ? `<br><strong>Current:</strong> ${currentSubstitution}` : ''}`;
+
+        // Show notes if available
+        if (substitutions.notes) {
+            notesDiv.innerHTML = `<strong>Note:</strong> ${substitutions.notes}`;
+        } else {
+            notesDiv.innerHTML = '';
+        }
+
+        // Show avoid section if available
+        if (substitutions.avoid && substitutions.avoid.length > 0) {
+            avoidDiv.innerHTML = `
+                <h4>⚠️ Avoid These:</h4>
+                <ul>
+                    ${substitutions.avoid.map(item => `<li>${item}</li>`).join('')}
+                </ul>
+            `;
+        } else {
+            avoidDiv.innerHTML = '';
+        }
+
+        // Render substitution options
+        optionsDiv.innerHTML = substitutions.options.map((option, index) => `
+            <label class="substitution-option">
+                <input type="radio"
+                       name="substitution"
+                       value="${option}"
+                       data-index="${index}"
+                       ${currentSubstitution === option ? 'checked' : ''}>
+                <span class="substitution-option-text">${option}</span>
+            </label>
+        `).join('');
+
+        // Show modal
+        modal.classList.remove('hidden');
+    },
+
+    // Close substitution modal
+    closeSubstitutionModal() {
+        const modal = document.getElementById('substitution-modal');
+        modal.classList.add('hidden');
+        AppState.currentSubstitutionExercise = null;
+    },
+
+    // Apply selected substitution
+    applySubstitution() {
+        const selectedRadio = document.querySelector('input[name="substitution"]:checked');
+        if (!selectedRadio) {
+            alert('Please select a substitution exercise.');
+            return;
+        }
+
+        const exerciseIndex = AppState.currentSubstitutionExercise;
+        const substitutionName = selectedRadio.value;
+
+        // Save substitution
+        AppState.substitutions[exerciseIndex] = substitutionName;
+
+        // Re-render the workout to show the substitution
+        UI.renderFullWorkout();
+
+        // Close modal
+        this.closeSubstitutionModal();
+    },
+
+    // Reset to original exercise
+    resetToOriginal() {
+        const exerciseIndex = AppState.currentSubstitutionExercise;
+
+        // Remove substitution
+        delete AppState.substitutions[exerciseIndex];
+
+        // Re-render the workout
+        UI.renderFullWorkout();
+
+        // Close modal
+        this.closeSubstitutionModal();
     }
 };
 
@@ -717,6 +871,7 @@ const WorkoutController = {
         AppState.currentWorkout = workoutId;
         AppState.workoutData = [];
         AppState.workoutStartTime = Date.now();
+        AppState.substitutions = {}; // Clear any previous substitutions
 
         const workout = getWorkout(workoutId);
 
@@ -818,13 +973,23 @@ const WorkoutController = {
             return;
         }
 
+        // Add substitution information to exercises
+        const workout = getWorkout(AppState.currentWorkout);
+        completedExercises.forEach((exerciseData, index) => {
+            const workoutExerciseIndex = workout.exercises.findIndex(e => e.name === exerciseData.name);
+            if (AppState.substitutions[workoutExerciseIndex]) {
+                exerciseData.substitutedWith = AppState.substitutions[workoutExerciseIndex];
+            }
+        });
+
         const workoutLog = {
             id: Date.now().toString(),
             date: new Date().toISOString(),
             workoutType: AppState.currentWorkout,
             exercises: completedExercises,
             duration: duration,
-            completed: true
+            completed: true,
+            substitutions: { ...AppState.substitutions } // Save substitutions
         };
 
         // Save to localStorage

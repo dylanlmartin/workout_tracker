@@ -398,35 +398,377 @@ function parseRepRange(repString) {
 }
 
 /**
- * Get exercise substitutions (future feature)
+ * Exercise Substitutions
+ * Based on workout-tracker-spec.md Exercise Substitutions section
+ * Each exercise has an array of substitution options
  */
 const SUBSTITUTIONS = {
-    'Neutral-Grip DB Floor Press': [
-        'Neutral-grip DB press on low incline (15-30°)',
-        'Landmine press',
-        'Neutral-grip DB press on flat bench (limited ROM)'
-    ],
-    'Barbell Row': [
-        'Pendlay row',
-        'Chest-supported DB row',
-        'T-bar row',
-        'Seal row'
-    ],
-    'Back Squat': [
-        'Safety bar squat',
-        'Goblet squat',
-        'Hack squat machine',
-        'Leg press'
-    ],
-    'Bulgarian Split Squat': [
-        'Rear foot elevated split squat with support',
-        'Regular split squat',
-        'Single-leg leg press'
-    ],
-    'Nordic Curls': [
-        'Eccentric-only nordic curls',
-        'Band-assisted nordic curls',
-        'Lying leg curl with slow eccentric',
-        'Glute-ham raise'
-    ]
+    // Primary Pressing
+    'Neutral-Grip DB Floor Press': {
+        options: [
+            'Neutral-grip DB press on low incline (15-30°)',
+            'Landmine press',
+            'Neutral-grip DB press on flat bench (limited ROM)'
+        ],
+        avoid: [
+            'Barbell bench press',
+            'Wide-grip pressing variations',
+            'Full range dips'
+        ],
+        notes: 'Never substitute with barbell bench or wide-grip variations due to costochondritis safety.'
+    },
+
+    // Rows
+    'Barbell Row': {
+        options: [
+            'Pendlay row',
+            'Chest-supported DB row',
+            'T-bar row',
+            'Seal row'
+        ],
+        notes: 'Focus: Pull with back not arms, maintain neutral spine, full scapular retraction.'
+    },
+
+    'Cable Row': {
+        options: [
+            'Seated cable row',
+            'Single-arm cable row',
+            'Chest-supported row',
+            'DB bent-over row'
+        ],
+        notes: 'Control the negative. Avoid shrugging shoulders.'
+    },
+
+    // Cable Pressing
+    'Cable Press (decline, neutral)': {
+        options: [
+            'Low cable crossover',
+            'Resistance band press (decline angle)',
+            'Light DB press (higher reps)',
+            'Machine press (neutral grip if available)'
+        ],
+        notes: 'If cable unavailable: resistance band press at same angle or light DB press with higher reps.'
+    },
+
+    'Cable Press (incline)': {
+        options: [
+            'High cable crossover',
+            'Resistance band press (incline angle)',
+            'Light DB incline press',
+            'Machine press (incline, neutral grip)'
+        ],
+        notes: 'Maintain neutral grip for chest safety.'
+    },
+
+    'Cable Pulldown': {
+        options: [
+            'Lat pulldown (any machine)',
+            'Pull-ups or chin-ups',
+            'Assisted pull-ups',
+            'Single-arm cable pulldown'
+        ],
+        notes: 'Pull to upper chest. Squeeze lats at bottom.'
+    },
+
+    // Squatting
+    'Back Squat': {
+        options: [
+            'Safety bar squat (reduced thoracic stress)',
+            'Goblet squat (lighter load, good for hypertrophy)',
+            'Hack squat machine',
+            'Leg press (not ideal, but acceptable)'
+        ],
+        avoid: [
+            'Skipping bilateral squat pattern entirely on Lower A'
+        ],
+        notes: 'Some form of bilateral squat pattern required for Lower A.'
+    },
+
+    'Bulgarian Split Squat': {
+        options: [
+            'Rear foot elevated split squat with support',
+            'Regular split squat (both feet on ground)',
+            'Single-leg leg press',
+            'Walking lunges'
+        ],
+        notes: 'If balance is an issue, use support or both feet on ground.'
+    },
+
+    // Nordic Curls
+    'Nordic Curls': {
+        options: [
+            'Eccentric-only nordic curls (just the lowering)',
+            'Band-assisted nordic curls',
+            'Lying leg curl with slow eccentric (5-second negative)',
+            'Glute-ham raise (easier variation)'
+        ],
+        progression: 'Start with 1-3 reps per set. Focus on 5-second eccentric. Add reps before adding sets.',
+        notes: 'If too difficult: eccentric-only or band-assisted. Progression: 1-3 reps → add reps before sets.'
+    },
+
+    // Deadlift Variations
+    'Romanian Deadlift': {
+        options: [
+            'Dumbbell RDL (easier to control)',
+            'Single-leg RDL (lighter load, unilateral work)',
+            'Back extension with good morning pattern',
+            'Stiff-leg deadlift'
+        ],
+        notes: 'Hinge at hips not round spine. Keep bar close. Feel stretch in hamstrings not lower back.'
+    },
+
+    'Stiff-Leg Deadlift': {
+        options: [
+            'Romanian deadlift',
+            'Dumbbell stiff-leg deadlift',
+            'Single-leg RDL',
+            'Back extension'
+        ],
+        notes: 'Slight knee bend. Hinge at hips. Feel hamstring stretch.'
+    },
+
+    // Lunges
+    'Walking Lunges': {
+        options: [
+            'Stationary lunges',
+            'Reverse lunges',
+            'DB step-ups',
+            'Split squats'
+        ],
+        notes: 'Long stride. Knee doesn\'t pass toes. Keep torso upright.'
+    },
+
+    // Overhead Press
+    'DB Overhead Press': {
+        options: [
+            'Landmine press',
+            'Arnold press (partial rotation)',
+            'Machine shoulder press',
+            'Seated DB press'
+        ],
+        avoid: [
+            'Going too heavy if costochondritis flares - drop weight and increase reps'
+        ],
+        notes: 'Can create sternum stress if too heavy. Drop weight increase reps if costochondritis symptoms.'
+    },
+
+    // Deltoid Work
+    'DB Lateral Raise': {
+        options: [
+            'Cable lateral raise',
+            'Machine lateral raise',
+            'Single-arm DB lateral raise',
+            'Upright row (wide grip)'
+        ],
+        notes: 'Slight bend in elbows. Lead with elbows not hands.'
+    },
+
+    'DB Reverse Fly': {
+        options: [
+            'Cable reverse fly',
+            'Machine reverse fly',
+            'Bent-over cable fly',
+            'Prone DB reverse fly'
+        ],
+        notes: 'Hinge at hips. Squeeze shoulder blades together at top.'
+    },
+
+    'Face Pulls': {
+        options: [
+            'Band face pulls',
+            'Reverse cable fly',
+            'DB reverse fly',
+            'Wide-grip cable row to face'
+        ],
+        notes: 'Pull to face level. External rotation at end. Focus on rear delts.'
+    },
+
+    // Arms
+    'Bicep Curls (Myo-reps)': {
+        options: [
+            'Standard bicep curls (straight sets)',
+            'EZ-bar curls',
+            'Cable curls',
+            'Hammer curls'
+        ],
+        notes: 'Myo-reps structure: 12-15 activation set + 3x3-5 mini-sets with 15s rest.'
+    },
+
+    'Hammer Curls': {
+        options: [
+            'Cable hammer curls',
+            'Cross-body hammer curls',
+            'Rope cable curls',
+            'Neutral-grip DB curls'
+        ],
+        notes: 'Neutral grip throughout. Control the eccentric.'
+    },
+
+    'Tricep Pushdowns (Myo-reps)': {
+        options: [
+            'Standard tricep pushdowns (straight sets)',
+            'Overhead cable extension',
+            'Close-grip bench press',
+            'DB overhead extension'
+        ],
+        notes: 'Myo-reps structure: 12-15 activation set + 3x3-5 mini-sets with 15s rest.'
+    },
+
+    'Close-Grip Pushdowns': {
+        options: [
+            'Rope pushdowns',
+            'V-bar pushdowns',
+            'Single-arm pushdowns',
+            'Overhead cable extension'
+        ],
+        notes: 'Elbows tucked. Full extension at bottom. Squeeze triceps.'
+    },
+
+    // Leg Accessories
+    'Leg Curl': {
+        options: [
+            'Seated leg curl',
+            'Lying leg curl',
+            'Single-leg curl',
+            'Nordic curls (eccentric)'
+        ],
+        notes: 'Control the eccentric. Full range of motion.'
+    },
+
+    'Leg Extension': {
+        options: [
+            'Single-leg extension',
+            'Goblet squat (lighter, higher reps)',
+            'Leg press (quad-focused)',
+            'Step-ups'
+        ],
+        notes: 'Squeeze quads at top. Slow negative.'
+    },
+
+    // Calves
+    'Standing Calf Raise': {
+        options: [
+            'Single-leg calf raise',
+            'Calf raise on leg press',
+            'Smith machine calf raise',
+            'Seated calf raise (different emphasis)'
+        ],
+        notes: 'Full stretch at bottom. Pause at top contraction.'
+    },
+
+    'Seated Calf Raise': {
+        options: [
+            'Standing calf raise (different emphasis)',
+            'Single-leg seated calf raise',
+            'Leg press calf raise',
+            'Smith machine calf raise'
+        ],
+        notes: 'Full stretch at bottom. Pause at top. High rep range.'
+    },
+
+    // Core
+    'Pallof Press': {
+        options: [
+            'Cable woodchops',
+            'Anti-rotation band holds',
+            'Suitcase carries',
+            'Half-kneeling pallof press'
+        ],
+        notes: 'Resist rotation. Keep core braced throughout.'
+    },
+
+    'Dead Bug': {
+        options: [
+            'Bird dog (easier)',
+            'Hollow body hold',
+            'Modified dead bug (single leg)',
+            'Plank variations'
+        ],
+        notes: 'Keep lower back pressed to floor. Move slowly and controlled.'
+    },
+
+    'Side Plank': {
+        options: [
+            'Side plank from knees',
+            'Side-lying hip abduction',
+            'Copenhagen plank (advanced)',
+            'Side plank with rotation'
+        ],
+        notes: 'Keep hips elevated. Maintain straight line from head to feet.'
+    },
+
+    'Plank': {
+        options: [
+            'Plank from knees',
+            'RKC plank (max tension)',
+            'Plank with arm/leg lift',
+            'Plank on stability ball'
+        ],
+        notes: 'Maintain straight line. Don\'t let hips sag. Breathe normally.'
+    },
+
+    'Bird Dog': {
+        options: [
+            'Modified bird dog (arm or leg only)',
+            'Quadruped hold',
+            'Dead bug',
+            'Superman hold'
+        ],
+        notes: 'Opposite arm and leg. Keep hips level. Move slowly.'
+    },
+
+    'Hanging Knee Raise': {
+        options: [
+            'Captain\'s chair knee raise',
+            'Lying leg raise',
+            'Reverse crunches',
+            'Decline sit-ups'
+        ],
+        notes: 'Control the swing. Use abs to pull knees up not momentum.'
+    },
+
+    'Cable Woodchops': {
+        options: [
+            'Pallof press',
+            'Russian twists',
+            'Medicine ball chops',
+            'Landmine rotations'
+        ],
+        notes: 'Rotate from core not arms. Controlled movement throughout.'
+    },
+
+    // Cardio
+    'HIIT Bike Intervals': {
+        options: [
+            'Rowing machine intervals (10x30s/30s)',
+            'Assault bike',
+            'Ski erg',
+            'Treadmill sprints (if no knee issues)'
+        ],
+        notes: '10 rounds: 30s all-out sprint, 30s easy recovery. Total 10 minutes.'
+    },
+
+    'Steady-State Cardio': {
+        options: [
+            'Incline treadmill walk',
+            'Elliptical',
+            'Swimming',
+            'Rowing machine (lower intensity)'
+        ],
+        notes: 'Zone 2 - conversational pace. 20 minutes.'
+    }
 };
+
+/**
+ * Get substitutions for an exercise
+ */
+function getSubstitutions(exerciseName) {
+    return SUBSTITUTIONS[exerciseName] || null;
+}
+
+/**
+ * Check if an exercise has substitutions available
+ */
+function hasSubstitutions(exerciseName) {
+    return exerciseName in SUBSTITUTIONS;
+}

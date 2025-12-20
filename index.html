@@ -125,6 +125,33 @@
                 </div>
             </div>
         </main>
+
+        <!-- Exercise Substitution Modal -->
+        <div id="substitution-modal" class="modal hidden">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3 id="substitution-title">Exercise Substitutions</h3>
+                    <button id="close-substitution-modal" class="close-modal">×</button>
+                </div>
+                <div class="modal-body">
+                    <div id="original-exercise" class="original-exercise"></div>
+
+                    <div id="substitution-notes" class="substitution-notes"></div>
+
+                    <div id="avoid-section" class="avoid-section"></div>
+
+                    <h4>Available Substitutions:</h4>
+                    <div id="substitution-options" class="substitution-options">
+                        <!-- Options will be dynamically inserted -->
+                    </div>
+
+                    <div class="modal-actions">
+                        <button id="cancel-substitution" class="btn-secondary">Cancel</button>
+                        <button id="reset-exercise" class="btn-secondary">Reset to Original</button>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 
     <!-- App Scripts -->
