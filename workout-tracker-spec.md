@@ -113,6 +113,183 @@ Each exercise contains:
 7. Steady-State Cardio - 1 set, 20 min, 0s rest [CARDIO]
    - Notes: "Zone 2 - conversational pace"
 
+## Optional Workouts (Tue-Thu Add-ons)
+
+### Overview
+These are supplemental workouts designed for Tuesday-Thursday during office weeks when time permits. They are **truly optional** - the core 4-day program (Upper A/B, Lower A/B) is sufficient for progress. These add-ons provide extra volume, maintain training frequency, or support recovery without interfering with the main program.
+
+### Key Principles
+- **Not required for progress** - Core 4 workouts are sufficient
+- **No progression tracking** - Use consistent moderate weights
+- **Lighter intensity** - Leave 3-4 reps in reserve
+- **Time-efficient** - All under 30 minutes
+- **Skip if tired** - Recovery takes priority over bonus volume
+
+### Optional Workout 1: Quick Upper Accessory
+
+**Duration:** 25 minutes  
+**Purpose:** Extra arm volume, maintain upper body frequency  
+**Best for:** Tuesday or Wednesday when you have 30 minutes
+
+**Exercises:**
+1. Cable Face Pulls - 3 sets, 15 reps, 60s rest
+2. Bicep Curls (DB or Cable) - 3 sets, 12 reps, 60s rest
+3. Tricep Extensions (Cable) - 3 sets, 12 reps, 60s rest
+4. Pallof Press - 2 sets, 10/side, 60s rest
+
+**Notes:**
+- Use same weight each session (don't progress)
+- Focus on form and muscle contraction
+- Can superset biceps + triceps to save time (90s rest between supersets)
+- Skip if arms still sore from Upper A/B
+
+### Optional Workout 2: Zone 2 Cardio
+
+**Duration:** 30 minutes  
+**Purpose:** Cardiovascular health, active recovery  
+**Best for:** Any day Tue-Thu, especially after Upper days
+
+**Options:**
+- Stationary bike (easiest on legs)
+- Incline treadmill walk (10-15% grade, 3.0-3.5 mph)
+- Elliptical
+- Rowing machine (low intensity)
+- Swimming
+
+**Target intensity:**
+- Can hold a conversation throughout
+- Breathing elevated but not labored
+- Heart rate ~60-70% max (if tracking)
+- Should feel easier as workout progresses (warm-up effect)
+
+**Notes:**
+- This aids recovery, doesn't hinder it
+- Can be done on same day as accessory work (after lifting)
+- Don't turn this into HIIT or tempo work
+
+### Optional Workout 3: Core + Mobility
+
+**Duration:** 20 minutes  
+**Purpose:** Injury prevention, movement quality, feel better  
+**Best for:** Tuesday or Wednesday, especially during office weeks
+
+**Structure:**
+
+**Mobility Work (8 min):**
+- Thoracic extensions on foam roller - 10 passes
+- Cat-cow - 15 reps
+- World's greatest stretch - 5/side
+- Wall slides - 10 reps
+- Hip 90/90 stretches - 60s/side
+
+**Core Circuit (10 min):**
+- Dead bugs - 3 sets × 10/side, 30s rest
+- Plank - 3 sets × 45-60s, 30s rest
+- Suitcase carries - 2 sets × 40 yards/side, 60s rest
+- Bird dogs - 2 sets × 10/side, 30s rest
+
+**Cooldown (2 min):**
+- Child's pose - 60s
+- Deep breathing - 60s
+
+**Notes:**
+- Use this on days you feel stiff or tight
+- Particularly valuable during office weeks (sedentary Tue-Thu)
+- Can do this at home if gym access is limited
+
+### Optional Workout 4: Upper Pump Session
+
+**Duration:** 30 minutes  
+**Purpose:** Extra volume without CNS fatigue before Friday's Upper A  
+**Best for:** Thursday of home weeks only
+
+**Exercises:**
+1. Cable Press (any angle) - 3 sets, 12-15 reps, 90s rest
+   - Use 50-60% of your DB floor press weight equivalent
+2. Cable Row (any angle) - 3 sets, 12-15 reps, 90s rest
+3. Lateral Raises - 3 sets, 15 reps, 60s rest
+   - Very light weight, focus on deltoid burn
+4. Cable Curls - 2 sets, 15 reps, 60s rest
+5. Cable Tricep Pushdowns - 2 sets, 15 reps, 60s rest
+6. Pallof Press - 2 sets, 10/side, 60s rest
+
+**Notes:**
+- **Only on Thursday** - gives 24h before Friday's Upper A
+- **Never on Wednesday** - too close to Friday's heavy work
+- Light weights, high reps, chase the pump
+- Stop if shoulders feel fatigued
+- Skip entirely during office weeks (not worth the fatigue)
+
+### Optional Workout 5: Lower Body Accessories
+
+**Duration:** 25 minutes  
+**Purpose:** Extra glute/hamstring work, calf development  
+**Best for:** Wednesday of home weeks (between Lower A and Upper B)
+
+**Exercises:**
+1. Glute Bridges - 3 sets, 15-20 reps, 60s rest
+   - Can add barbell across hips if desired
+2. Hamstring Curls - 3 sets, 12-15 reps, 60s rest
+3. Standing Calf Raises - 4 sets, 20 reps, 45s rest
+4. Adductor Machine (if available) - 2 sets, 15 reps, 60s rest
+5. Abductor Machine (if available) - 2 sets, 15 reps, 60s rest
+
+**Notes:**
+- Avoid heavy compound movements (squats, deadlifts)
+- Focus on isolation and muscle feel
+- Skip if still sore from Monday's Lower B
+- Particularly good if you want extra glute development
+
+### Scheduling Guidelines
+
+**Office Week (Tue-Thu in office):**
+- Realistic: 0-1 optional workouts max
+- Best choice: Core + Mobility (can do at home)
+- Alternative: Zone 2 Cardio (if you can fit 30 min)
+- **Don't force it** - rest is more valuable than rushed bonus work
+
+**Home Week (More flexibility):**
+- Realistic: 1-3 optional workouts
+- Tuesday: Quick Upper Accessory OR Zone 2 Cardio
+- Wednesday: Core + Mobility OR Lower Accessories
+- Thursday: Upper Pump Session OR Zone 2 Cardio
+
+**Priority ranking when deciding:**
+1. **Core + Mobility** - Most bang for buck, aids recovery
+2. **Zone 2 Cardio** - Cardiovascular health, easy recovery
+3. **Quick Upper Accessory** - If arms are a focus
+4. **Upper Pump Session** - Only if feeling great Thursday
+5. **Lower Accessories** - Only if specific weak points
+
+### Implementation Notes for Tracker
+
+**Separate category:**
+- List as "Optional Workouts" distinct from main 4-day program
+- Clearly label as "Optional - Not Required"
+- Different visual treatment (lighter colors, different icon)
+
+**No progression tracking:**
+- Don't show "last time you did this"
+- Don't calculate volume or progression metrics
+- Simple checkbox: "Completed" or not
+- Optional notes field only
+
+**Time/Energy check:**
+- Before starting, prompt: "Do you have 20-30 minutes and feel recovered?"
+- Suggest skipping if user logged <7 hours sleep
+- Suggest skipping if last workout was <48 hours ago
+
+**Smart suggestions:**
+- If Tuesday: Suggest Core + Mobility or Zone 2
+- If Wednesday: Suggest Lower Accessories (only if home week)
+- If Thursday: Suggest Upper Pump (only if home week)
+- Never suggest on Friday-Monday (core workout days)
+
+**Usage tracking:**
+- Track frequency: "You've done X optional workouts this month"
+- Don't make this competitive or a streak
+- Frame as: "Bonus volume when life allows"
+
 ## Exercise Substitutions
 
 ### Primary Pressing (Neutral-Grip DB Floor Press)
