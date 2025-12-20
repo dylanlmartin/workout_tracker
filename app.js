@@ -22,7 +22,8 @@ const AppState = {
     sheetId: null,
     activeExerciseIndex: null,
     substitutions: {}, // Tracks exercise substitutions {exerciseIndex: substitutedName}
-    currentSubstitutionExercise: null // Currently viewing substitutions for this exercise
+    currentSubstitutionExercise: null, // Currently viewing substitutions for this exercise
+    bodyweightMode: false // Bodyweight mode enabled/disabled
 };
 
 // ==================== LOCAL STORAGE ====================
@@ -83,6 +84,17 @@ const Storage = {
     // Get theme preference
     getTheme() {
         return localStorage.getItem(this.KEYS.THEME) || 'light';
+    },
+
+    // Save bodyweight mode preference
+    saveBodyweightMode(isBodyweight) {
+        localStorage.setItem('workout_tracker_bodyweight_mode', isBodyweight ? 'true' : 'false');
+    },
+
+    // Get bodyweight mode preference
+    getBodyweightMode() {
+        const mode = localStorage.getItem('workout_tracker_bodyweight_mode');
+        return mode === 'true';
     },
 
     // Clear all data
@@ -326,6 +338,7 @@ const UI = {
         this.attachEventListeners();
         this.loadTheme();
         this.loadConfig();
+        this.loadBodyweightMode();
     },
 
     // Render workout selection grid
@@ -661,6 +674,35 @@ const UI = {
         }
     },
 
+    // Load bodyweight mode preference
+    loadBodyweightMode() {
+        const isBodyweight = Storage.getBodyweightMode();
+        AppState.bodyweightMode = isBodyweight;
+        document.getElementById('bodyweight-mode-toggle').checked = isBodyweight;
+
+        // Update visual indicator
+        this.updateBodyweightModeIndicator();
+    },
+
+    // Toggle bodyweight mode
+    toggleBodyweightMode() {
+        AppState.bodyweightMode = !AppState.bodyweightMode;
+        Storage.saveBodyweightMode(AppState.bodyweightMode);
+
+        // Update visual indicator
+        this.updateBodyweightModeIndicator();
+    },
+
+    // Update bodyweight mode visual indicator
+    updateBodyweightModeIndicator() {
+        const header = document.getElementById('header');
+        if (AppState.bodyweightMode) {
+            header.classList.add('bodyweight-mode-active');
+        } else {
+            header.classList.remove('bodyweight-mode-active');
+        }
+    },
+
     // Attach all event listeners
     attachEventListeners() {
         // Navigation
@@ -719,6 +761,10 @@ const UI = {
 
         document.getElementById('theme-toggle').addEventListener('change', () => {
             this.toggleTheme();
+        });
+
+        document.getElementById('bodyweight-mode-toggle').addEventListener('change', () => {
+            this.toggleBodyweightMode();
         });
 
         document.getElementById('export-data-btn').addEventListener('click', () => {
@@ -874,6 +920,16 @@ const WorkoutController = {
         AppState.substitutions = {}; // Clear any previous substitutions
 
         const workout = getWorkout(workoutId);
+
+        // Apply bodyweight substitutions if bodyweight mode is enabled
+        if (AppState.bodyweightMode) {
+            workout.exercises.forEach((exercise, index) => {
+                const bodyweightSub = getBodyweightSubstitution(exercise.name);
+                if (bodyweightSub !== exercise.name) {
+                    AppState.substitutions[index] = bodyweightSub;
+                }
+            });
+        }
 
         // Initialize workout data structure
         workout.exercises.forEach(exercise => {

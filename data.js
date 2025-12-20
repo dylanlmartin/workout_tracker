@@ -772,3 +772,67 @@ function getSubstitutions(exerciseName) {
 function hasSubstitutions(exerciseName) {
     return exerciseName in SUBSTITUTIONS;
 }
+
+/**
+ * Bodyweight Substitutions
+ * Based on workout-tracker-spec.md Bodyweight Substitutions section
+ * Maps gym exercises to bodyweight alternatives for home/travel workouts
+ */
+const BODYWEIGHT_SUBSTITUTIONS = {
+    // Pressing
+    'Neutral-Grip DB Floor Press': 'Elevated Push-ups (limited ROM)',
+    'Cable Press (decline, neutral)': 'Decline Push-ups',
+    'Cable Press (incline)': 'Pike Push-ups',
+
+    // Rows
+    'Barbell Row': 'Inverted Rows (under table)',
+    'Cable Row': 'Towel Rows',
+
+    // Shoulders
+    'DB Overhead Press': 'Pike Push-ups',
+    'DB Lateral Raise': 'Band Lateral Raises',
+    'DB Reverse Fly': 'Prone Y-raises',
+    'Face Pulls': 'Band Face Pulls',
+
+    // Arms
+    'Bicep Curls (Myo-reps)': 'Towel Curls (Myo-reps)',
+    'Hammer Curls': 'Backpack Curls',
+    'Tricep Pushdowns (Myo-reps)': 'Diamond Push-ups (Myo-reps)',
+    'Close-Grip Pushdowns': 'Close-Grip Push-ups',
+
+    // Legs
+    'Back Squat': 'Pistol Squats (assisted)',
+    'Bulgarian Split Squat': 'Bulgarian Split Squats (bodyweight)',
+    'Romanian Deadlift': 'Single-Leg RDL (bodyweight)',
+    'Stiff-Leg Deadlift': 'Good Mornings (bodyweight)',
+    'Leg Curl': 'Nordic Curls (eccentric)',
+    'Leg Extension': 'Sissy Squats',
+    'Walking Lunges': 'Walking Lunges (bodyweight)',
+
+    // Calves
+    'Standing Calf Raise': 'Single-Leg Calf Raise',
+    'Seated Calf Raise': 'Seated Single-Leg Calf Raise',
+
+    // Core (already bodyweight)
+    'Pallof Press': 'Band Anti-Rotation Press',
+    'Dead Bug': 'Dead Bug',
+    'Bird Dog': 'Bird Dog',
+    'Plank': 'Plank',
+    'Side Plank': 'Side Plank',
+    'Hanging Knee Raise': 'Lying Leg Raises',
+    'Cable Woodchops': 'Band Woodchops',
+
+    // Pulldowns
+    'Cable Pulldown': 'Pull-ups or Chin-ups',
+
+    // Cardio
+    'HIIT Bike Intervals': 'HIIT Burpees (10x30s/30s)',
+    'Steady-State Cardio': 'Steady-State Cardio (running/jump rope)'
+};
+
+/**
+ * Get bodyweight substitution for an exercise
+ */
+function getBodyweightSubstitution(exerciseName) {
+    return BODYWEIGHT_SUBSTITUTIONS[exerciseName] || exerciseName;
+}
