@@ -590,7 +590,13 @@ const UI = {
         }
 
         AppState.remainingTime = duration;
-        AppState.totalRestTime = duration;
+
+        // Only update totalRestTime if starting fresh (not resuming from pause)
+        // Detect resume: duration < totalRestTime means we're resuming with remaining time
+        if (AppState.totalRestTime === 0 || duration >= AppState.totalRestTime) {
+            AppState.totalRestTime = duration;
+        }
+
         AppState.isTimerRunning = true;
 
         // Use timestamp for accurate background timing
@@ -598,6 +604,9 @@ const UI = {
 
         const timerElement = document.getElementById('rest-timer');
         timerElement.classList.remove('hidden');
+
+        // Reset pause button text
+        document.getElementById('pause-timer-btn').textContent = 'Pause';
 
         this.updateTimerDisplay();
 
@@ -646,6 +655,7 @@ const UI = {
             clearInterval(AppState.timerInterval);
             AppState.timerInterval = null;
         }
+        AppState.totalRestTime = 0; // Reset for next timer
         document.getElementById('rest-timer').classList.add('hidden');
     },
 
