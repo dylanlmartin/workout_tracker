@@ -1239,19 +1239,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // Handle page visibility changes (browser tab switching)
 document.addEventListener('visibilitychange', () => {
-    if (document.hidden) {
-        // Page is hidden (user switched to another browser tab)
-        // Pause timer to prevent timing issues (keeps timer visible)
-        if (AppState.isTimerRunning) {
-            UI.pauseRestTimer();
-            console.log('Timer paused due to browser tab switch');
-        }
-    } else {
+    if (!document.hidden) {
         // Page is visible again - re-request wake lock if workout is active
         if (AppState.currentWorkout && !AppState.wakeLock) {
             UI.requestWakeLock();
         }
     }
+    // Note: We don't pause the timer when hidden because the timestamp-based
+    // timer continues accurately in the background
 });
 
 // Initialize Google APIs when loaded
