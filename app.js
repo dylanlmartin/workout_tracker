@@ -590,7 +590,13 @@ const UI = {
         }
 
         AppState.remainingTime = duration;
-        AppState.totalRestTime = duration;
+
+        // Only update totalRestTime if starting fresh (not resuming from pause)
+        // Detect resume: duration < totalRestTime means we're resuming with remaining time
+        if (AppState.totalRestTime === 0 || duration >= AppState.totalRestTime) {
+            AppState.totalRestTime = duration;
+        }
+
         AppState.isTimerRunning = true;
 
         // Use timestamp for accurate background timing
@@ -598,6 +604,9 @@ const UI = {
 
         const timerElement = document.getElementById('rest-timer');
         timerElement.classList.remove('hidden');
+
+        // Reset pause button text
+        document.getElementById('pause-timer-btn').textContent = 'Pause';
 
         this.updateTimerDisplay();
 
@@ -646,6 +655,7 @@ const UI = {
             clearInterval(AppState.timerInterval);
             AppState.timerInterval = null;
         }
+        AppState.totalRestTime = 0; // Reset for next timer
         document.getElementById('rest-timer').classList.add('hidden');
     },
 
@@ -1239,19 +1249,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // Handle page visibility changes (browser tab switching)
 document.addEventListener('visibilitychange', () => {
-    if (document.hidden) {
-        // Page is hidden (user switched to another browser tab)
-        // Pause timer to prevent timing issues (keeps timer visible)
-        if (AppState.isTimerRunning) {
-            UI.pauseRestTimer();
-            console.log('Timer paused due to browser tab switch');
-        }
-    } else {
+    if (!document.hidden) {
         // Page is visible again - re-request wake lock if workout is active
         if (AppState.currentWorkout && !AppState.wakeLock) {
             UI.requestWakeLock();
         }
     }
+    // Note: We don't pause the timer when hidden because the timestamp-based
+    // timer continues accurately in the background
 });
 
 // Initialize Google APIs when loaded
