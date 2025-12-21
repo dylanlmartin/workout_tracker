@@ -620,7 +620,17 @@ const UI = {
         document.getElementById('timer-progress-bar').style.width = `${percentage}%`;
     },
 
-    // Stop rest timer
+    // Pause rest timer (keeps visible)
+    pauseRestTimer() {
+        AppState.isTimerRunning = false;
+        if (AppState.timerInterval) {
+            clearInterval(AppState.timerInterval);
+            AppState.timerInterval = null;
+        }
+        // Keep timer visible - don't hide it
+    },
+
+    // Stop rest timer (dismisses it)
     stopRestTimer() {
         AppState.isTimerRunning = false;
         if (AppState.timerInterval) {
@@ -772,10 +782,7 @@ const UI = {
 
                 // Prevent navigation if workout is in progress
                 if (AppState.currentWorkout && view !== 'workout') {
-                    if (confirm('You have a workout in progress. Switching tabs will cancel it. Continue?')) {
-                        WorkoutController.cancelWorkout();
-                        this.switchView(view);
-                    }
+                    alert('Please finish or cancel your workout before switching tabs.');
                     return;
                 }
 
@@ -803,7 +810,7 @@ const UI = {
         // Timer controls
         document.getElementById('pause-timer-btn').addEventListener('click', () => {
             if (AppState.isTimerRunning) {
-                UI.stopRestTimer();
+                UI.pauseRestTimer(); // Pause without hiding
                 document.getElementById('pause-timer-btn').textContent = 'Resume';
             } else {
                 UI.startRestTimer(AppState.remainingTime);
@@ -1158,11 +1165,10 @@ document.addEventListener('DOMContentLoaded', () => {
 document.addEventListener('visibilitychange', () => {
     if (document.hidden) {
         // Page is hidden (user switched to another browser tab)
-        // Pause timer to prevent timing issues
+        // Pause timer to prevent timing issues (keeps timer visible)
         if (AppState.isTimerRunning) {
-            UI.stopRestTimer();
-            // Save the remaining time so it can be resumed
-            console.log('Timer paused due to tab switch');
+            UI.pauseRestTimer();
+            console.log('Timer paused due to browser tab switch');
         }
     }
 });
