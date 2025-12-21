@@ -13,6 +13,7 @@
     --success: #10b981;
     --warning: #f59e0b;
     --danger: #ef4444;
+    --substitute: #8b5cf6;
     --border: #d1d5db;
     --shadow: rgba(0, 0, 0, 0.1);
 
@@ -53,6 +54,7 @@ body.dark-theme {
     --accent-primary: #3b82f6;
     --accent-secondary: #2563eb;
     --accent-light: #1e3a5f;
+    --substitute: #a78bfa;
     --border: #404040;
     --shadow: rgba(0, 0, 0, 0.3);
 }
@@ -1102,14 +1104,14 @@ body {
 }
 
 .exercise-card.substituted {
-    border-left: 4px solid var(--warning);
+    border-left: 4px solid var(--substitute);
 }
 
 .exercise-card.substituted .exercise-header::after {
     content: "↔️ Substituted";
     font-size: var(--font-size-xs);
-    color: var(--warning);
-    background-color: rgba(245, 158, 11, 0.1);
+    color: var(--substitute);
+    background-color: rgba(139, 92, 246, 0.1);
     padding: 2px 8px;
     border-radius: var(--radius-sm);
     margin-left: var(--spacing-sm);
