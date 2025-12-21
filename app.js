@@ -582,6 +582,11 @@ const UI = {
 
     // Start rest timer
     startRestTimer(duration) {
+        // CRITICAL: Clear any existing timer first to prevent multiple intervals
+        if (AppState.timerInterval) {
+            clearInterval(AppState.timerInterval);
+        }
+
         AppState.remainingTime = duration;
         AppState.totalRestTime = duration;
         AppState.isTimerRunning = true;
@@ -618,7 +623,10 @@ const UI = {
     // Stop rest timer
     stopRestTimer() {
         AppState.isTimerRunning = false;
-        clearInterval(AppState.timerInterval);
+        if (AppState.timerInterval) {
+            clearInterval(AppState.timerInterval);
+            AppState.timerInterval = null;
+        }
         document.getElementById('rest-timer').classList.add('hidden');
     },
 
