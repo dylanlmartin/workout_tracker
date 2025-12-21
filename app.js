@@ -25,7 +25,8 @@ const AppState = {
     activeExerciseIndex: null,
     substitutions: {}, // Tracks exercise substitutions {exerciseIndex: substitutedName}
     currentSubstitutionExercise: null, // Currently viewing substitutions for this exercise
-    bodyweightMode: false // Bodyweight mode enabled/disabled
+    bodyweightMode: false, // Bodyweight mode enabled/disabled
+    isOptionalWorkout: false // Track if current workout is optional
 };
 
 // ==================== LOCAL STORAGE ====================
@@ -397,10 +398,11 @@ const UI = {
 
     // Render workout selection grid
     renderWorkoutGrid() {
-        const grid = document.querySelector('.workout-grid');
-        const workouts = getAllWorkouts();
+        // Render main workouts
+        const mainGrid = document.getElementById('main-workout-grid');
+        const mainWorkouts = getAllWorkouts();
 
-        grid.innerHTML = workouts.map(workout => `
+        mainGrid.innerHTML = mainWorkouts.map(workout => `
             <div class="workout-card" data-workout-id="${workout.id}">
                 <h3>${workout.name}</h3>
                 <div class="description">${workout.description}</div>
@@ -409,11 +411,26 @@ const UI = {
             </div>
         `).join('');
 
-        // Attach click handlers
+        // Render optional workouts
+        const optionalGrid = document.getElementById('optional-workout-grid');
+        const optionalWorkouts = getAllOptionalWorkouts();
+
+        optionalGrid.innerHTML = optionalWorkouts.map(workout => `
+            <div class="workout-card" data-workout-id="${workout.id}" data-is-optional="true">
+                <h3>${workout.name}</h3>
+                <div class="description">${workout.description}</div>
+                <div class="duration">⏱️ ${workout.duration}</div>
+                <div class="focus">${workout.purpose}</div>
+                <div class="exercise-count">${workout.exercises.length} exercises</div>
+            </div>
+        `).join('');
+
+        // Attach click handlers to all workout cards
         document.querySelectorAll('.workout-card').forEach(card => {
             card.addEventListener('click', (e) => {
                 const workoutId = e.currentTarget.dataset.workoutId;
-                WorkoutController.startWorkout(workoutId);
+                const isOptional = e.currentTarget.dataset.isOptional === 'true';
+                WorkoutController.startWorkout(workoutId, isOptional);
             });
         });
     },
@@ -431,7 +448,10 @@ const UI = {
 
     // Render full workout view with all exercises
     renderFullWorkout() {
-        const workout = getWorkout(AppState.currentWorkout);
+        // Get workout from appropriate source
+        const workout = AppState.isOptionalWorkout
+            ? getOptionalWorkout(AppState.currentWorkout)
+            : getWorkout(AppState.currentWorkout);
         const previousWorkout = Storage.getPreviousWorkout(AppState.currentWorkout);
 
         document.getElementById('workout-title').textContent = workout.name;
@@ -1067,13 +1087,15 @@ const SubstitutionController = {
 
 const WorkoutController = {
     // Start a new workout
-    startWorkout(workoutId) {
+    startWorkout(workoutId, isOptional = false) {
         AppState.currentWorkout = workoutId;
         AppState.workoutData = [];
         AppState.workoutStartTime = Date.now();
         AppState.substitutions = {}; // Clear any previous substitutions
+        AppState.isOptionalWorkout = isOptional; // Track if this is an optional workout
 
-        const workout = getWorkout(workoutId);
+        // Get workout from appropriate source
+        const workout = isOptional ? getOptionalWorkout(workoutId) : getWorkout(workoutId);
 
         // Apply bodyweight substitutions if bodyweight mode is enabled
         if (AppState.bodyweightMode) {
