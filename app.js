@@ -769,6 +769,16 @@ const UI = {
         document.querySelectorAll('.nav-btn').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 const view = e.currentTarget.dataset.view;
+
+                // Prevent navigation if workout is in progress
+                if (AppState.currentWorkout && view !== 'workout') {
+                    if (confirm('You have a workout in progress. Switching tabs will cancel it. Continue?')) {
+                        WorkoutController.cancelWorkout();
+                        this.switchView(view);
+                    }
+                    return;
+                }
+
                 this.switchView(view);
 
                 // Load history when switching to history view
@@ -1142,6 +1152,19 @@ const WorkoutController = {
 // Initialize app when DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
     UI.init();
+});
+
+// Handle page visibility changes (browser tab switching)
+document.addEventListener('visibilitychange', () => {
+    if (document.hidden) {
+        // Page is hidden (user switched to another browser tab)
+        // Pause timer to prevent timing issues
+        if (AppState.isTimerRunning) {
+            UI.stopRestTimer();
+            // Save the remaining time so it can be resumed
+            console.log('Timer paused due to tab switch');
+        }
+    }
 });
 
 // Initialize Google APIs when loaded
