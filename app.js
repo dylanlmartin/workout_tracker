@@ -625,7 +625,7 @@ const UI = {
         card.innerHTML = html;
 
         // Attach event listeners based on exercise type
-        const exerciseType = exercise.exerciseType || 'reps';
+        // (exerciseType already declared above when building UI)
 
         if (exerciseType === 'duration') {
             // Duration exercise: complete button
