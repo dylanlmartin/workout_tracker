@@ -404,41 +404,67 @@ const UI = {
 
     // Render workout selection grid
     renderWorkoutGrid() {
-        // Render main workouts
-        const mainGrid = document.getElementById('main-workout-grid');
-        const mainWorkouts = getAllWorkouts();
+        try {
+            // Render main workouts
+            const mainGrid = document.getElementById('main-workout-grid');
+            if (!mainGrid) {
+                console.error('Main workout grid element not found');
+                return;
+            }
 
-        mainGrid.innerHTML = mainWorkouts.map(workout => `
-            <div class="workout-card" data-workout-id="${workout.id}">
-                <h3>${workout.name}</h3>
-                <div class="description">${workout.description}</div>
-                <div class="focus">${workout.focus}</div>
-                <div class="exercise-count">${workout.exercises.length} exercises</div>
-            </div>
-        `).join('');
+            const mainWorkouts = getAllWorkouts();
+            if (!mainWorkouts || mainWorkouts.length === 0) {
+                console.error('No main workouts found');
+                return;
+            }
 
-        // Render optional workouts
-        const optionalGrid = document.getElementById('optional-workout-grid');
-        const optionalWorkouts = getAllOptionalWorkouts();
+            mainGrid.innerHTML = mainWorkouts.map(workout => `
+                <div class="workout-card" data-workout-id="${workout.id}">
+                    <h3>${workout.name}</h3>
+                    <div class="description">${workout.description}</div>
+                    <div class="focus">${workout.focus}</div>
+                    <div class="exercise-count">${workout.exercises.length} exercises</div>
+                </div>
+            `).join('');
 
-        optionalGrid.innerHTML = optionalWorkouts.map(workout => `
-            <div class="workout-card" data-workout-id="${workout.id}" data-is-optional="true">
-                <h3>${workout.name}</h3>
-                <div class="description">${workout.description}</div>
-                <div class="duration">⏱️ ${workout.duration}</div>
-                <div class="focus">${workout.purpose}</div>
-                <div class="exercise-count">${workout.exercises.length} exercises</div>
-            </div>
-        `).join('');
+            // Render optional workouts
+            const optionalGrid = document.getElementById('optional-workout-grid');
+            if (!optionalGrid) {
+                console.error('Optional workout grid element not found');
+                // Continue anyway - main workouts are rendered
+            } else {
+                const optionalWorkouts = getAllOptionalWorkouts();
+                if (optionalWorkouts && optionalWorkouts.length > 0) {
+                    optionalGrid.innerHTML = optionalWorkouts.map(workout => `
+                        <div class="workout-card" data-workout-id="${workout.id}" data-is-optional="true">
+                            <h3>${workout.name}</h3>
+                            <div class="description">${workout.description}</div>
+                            <div class="duration">⏱️ ${workout.duration}</div>
+                            <div class="focus">${workout.purpose}</div>
+                            <div class="exercise-count">${workout.exercises.length} exercises</div>
+                        </div>
+                    `).join('');
+                } else {
+                    console.warn('No optional workouts found');
+                }
+            }
 
-        // Attach click handlers to all workout cards
-        document.querySelectorAll('.workout-card').forEach(card => {
-            card.addEventListener('click', (e) => {
-                const workoutId = e.currentTarget.dataset.workoutId;
-                const isOptional = e.currentTarget.dataset.isOptional === 'true';
-                WorkoutController.startWorkout(workoutId, isOptional);
+            // Attach click handlers to all workout cards
+            document.querySelectorAll('.workout-card').forEach(card => {
+                card.addEventListener('click', (e) => {
+                    const workoutId = e.currentTarget.dataset.workoutId;
+                    const isOptional = e.currentTarget.dataset.isOptional === 'true';
+                    WorkoutController.startWorkout(workoutId, isOptional);
+                });
             });
-        });
+        } catch (error) {
+            console.error('Error rendering workout grid:', error);
+            // Fallback: show error message to user
+            const mainGrid = document.getElementById('main-workout-grid');
+            if (mainGrid) {
+                mainGrid.innerHTML = '<p style="color: red;">Error loading workouts. Please refresh the page.</p>';
+            }
+        }
     },
 
     // Switch between views
