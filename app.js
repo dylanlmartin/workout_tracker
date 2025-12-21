@@ -560,15 +560,20 @@ const UI = {
 
         if (exerciseType === 'duration') {
             // Duration-based: single input for time + complete button
+            const durationUnit = exercise.durationUnit || 'minutes';
+            const unitLabel = durationUnit === 'seconds' ? 'seconds' : 'minutes';
+            const step = durationUnit === 'seconds' ? '1' : '0.5';
+
             html += `<div class="duration-tracker">`;
-            html += `<label for="duration-input-${exerciseIndex}">Duration (minutes):</label>`;
+            html += `<label for="duration-input-${exerciseIndex}">Duration (${unitLabel}):</label>`;
             html += `<input type="number"
                            id="duration-input-${exerciseIndex}"
                            class="duration-input"
                            placeholder="${exercise.targetDuration || '30'}"
                            inputmode="decimal"
                            min="0"
-                           step="0.5">`;
+                           step="${step}"
+                           data-unit="${durationUnit}">`;
             html += `<button class="btn-primary complete-duration-btn" data-exercise-index="${exerciseIndex}">
                         Complete
                      </button>`;
@@ -1299,21 +1304,24 @@ const WorkoutController = {
             : getWorkout(AppState.currentWorkout);
         const exercise = workout.exercises[exerciseIndex];
 
-        // Get duration input
+        // Get duration input and unit
         const card = document.querySelector(`[data-exercise-index="${exerciseIndex}"]`);
         const durationInput = card.querySelector('.duration-input');
         const duration = parseFloat(durationInput.value);
+        const unit = durationInput.dataset.unit || 'minutes';
+        const unitAbbrev = unit === 'seconds' ? 's' : 'min';
+        const unitLabel = unit === 'seconds' ? 'seconds' : 'minutes';
 
         // Validate
         if (!duration || duration <= 0) {
-            alert('Please enter the duration completed (in minutes).');
+            alert(`Please enter the duration completed (in ${unitLabel}).`);
             return;
         }
 
         // Save set data (duration exercises typically have 1 set)
         const setData = {
             setNumber: 1,
-            reps: `${duration} min`,
+            reps: `${duration}${unitAbbrev}`,
             weight: 0,
             completed: true
         };
@@ -1336,7 +1344,7 @@ const WorkoutController = {
                 exercise.name,
                 'duration',
                 1,
-                `${duration} min`,
+                `${duration}${unitAbbrev}`,
                 0,
                 exercise.rest
             );

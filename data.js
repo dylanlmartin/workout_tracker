@@ -937,21 +937,18 @@ const OPTIONAL_WORKOUTS = {
             },
             {
                 name: 'Cat-Cow',
-                exerciseType: 'completion',
                 sets: 1,
                 reps: '15',
                 rest: 0
             },
             {
                 name: 'World\'s Greatest Stretch',
-                exerciseType: 'completion',
                 sets: 1,
                 reps: '5/side',
                 rest: 0
             },
             {
                 name: 'Wall Slides',
-                exerciseType: 'completion',
                 sets: 1,
                 reps: '10',
                 rest: 0
@@ -960,7 +957,8 @@ const OPTIONAL_WORKOUTS = {
                 name: 'Hip 90/90 Stretches',
                 exerciseType: 'duration',
                 sets: 1,
-                targetDuration: 60, // seconds per side
+                targetDuration: 60, // seconds
+                durationUnit: 'seconds',
                 reps: '60s/side',
                 rest: 0
             },
@@ -976,6 +974,7 @@ const OPTIONAL_WORKOUTS = {
                 exerciseType: 'duration',
                 sets: 3,
                 targetDuration: 60, // seconds
+                durationUnit: 'seconds',
                 reps: '45-60s',
                 rest: 30,
                 category: 'core'
