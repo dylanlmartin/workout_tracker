@@ -40,9 +40,25 @@
         <main id="main-content">
             <!-- Home View: Workout Selection -->
             <div id="home-view" class="view active">
-                <div class="workout-grid">
-                    <!-- Workouts will be dynamically inserted here -->
-                </div>
+                <section class="main-workouts-section">
+                    <h2>Main Program</h2>
+                    <div class="workout-grid" id="main-workout-grid">
+                        <!-- Main workouts will be dynamically inserted here -->
+                    </div>
+                </section>
+
+                <section class="optional-workouts-section">
+                    <h2 class="optional-workouts-header">
+                        Optional Workouts
+                        <span class="optional-badge">Not Required</span>
+                    </h2>
+                    <p class="optional-description">
+                        💡 Bonus workouts for extra volume when time allows. The core 4-day program is sufficient for progress.
+                    </p>
+                    <div class="workout-grid optional-grid" id="optional-workout-grid">
+                        <!-- Optional workouts will be dynamically inserted here -->
+                    </div>
+                </section>
             </div>
 
             <!-- Active Workout View -->

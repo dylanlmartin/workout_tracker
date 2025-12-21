@@ -257,6 +257,77 @@ body {
     margin-top: var(--spacing-md);
 }
 
+/* ===== Optional Workouts Section ===== */
+.main-workouts-section {
+    margin-bottom: var(--spacing-xl);
+}
+
+.main-workouts-section h2 {
+    font-size: var(--font-size-xl);
+    color: var(--text-primary);
+    margin-bottom: var(--spacing-md);
+    border-bottom: 2px solid var(--accent-primary);
+    padding-bottom: var(--spacing-sm);
+}
+
+.optional-workouts-section {
+    margin-top: calc(var(--spacing-xl) * 2);
+    padding-top: var(--spacing-xl);
+    border-top: 1px solid var(--border);
+}
+
+.optional-workouts-header {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-md);
+    font-size: var(--font-size-xl);
+    color: var(--text-secondary);
+    margin-bottom: var(--spacing-sm);
+}
+
+.optional-badge {
+    font-size: var(--font-size-sm);
+    font-weight: normal;
+    background-color: var(--bg-tertiary);
+    color: var(--text-tertiary);
+    padding: var(--spacing-xs) var(--spacing-sm);
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border);
+}
+
+.optional-description {
+    font-size: var(--font-size-sm);
+    color: var(--text-tertiary);
+    margin-bottom: var(--spacing-lg);
+    font-style: italic;
+}
+
+.optional-grid .workout-card {
+    border: 1px dashed var(--border);
+    background-color: var(--bg-primary);
+    opacity: 0.9;
+}
+
+.optional-grid .workout-card:hover {
+    opacity: 1;
+    border-style: solid;
+    border-color: var(--accent-secondary);
+}
+
+.optional-grid .workout-card h3 {
+    color: var(--text-secondary);
+}
+
+.optional-grid .workout-card .duration {
+    display: inline-block;
+    font-size: var(--font-size-xs);
+    color: var(--text-tertiary);
+    background-color: var(--bg-secondary);
+    padding: 2px var(--spacing-xs);
+    border-radius: var(--radius-sm);
+    margin-top: var(--spacing-xs);
+}
+
 /* ===== Workout View ===== */
 .workout-header {
     margin-bottom: var(--spacing-lg);

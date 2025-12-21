@@ -836,3 +836,280 @@ const BODYWEIGHT_SUBSTITUTIONS = {
 function getBodyweightSubstitution(exerciseName) {
     return BODYWEIGHT_SUBSTITUTIONS[exerciseName] || exerciseName;
 }
+
+// ==================== OPTIONAL WORKOUTS ====================
+
+/**
+ * Optional workouts for bonus volume during office weeks
+ * These are NOT required for progress - the core 4-day program is sufficient
+ * No progression tracking - use consistent moderate weights
+ */
+const OPTIONAL_WORKOUTS = {
+    quick_upper: {
+        id: 'quick_upper',
+        name: 'Quick Upper Accessory',
+        description: 'Extra arm volume, maintain upper body frequency',
+        duration: '25 minutes',
+        purpose: 'Extra arm volume, maintain upper body frequency',
+        bestFor: 'Tuesday or Wednesday when you have 30 minutes',
+        isOptional: true,
+        exercises: [
+            {
+                name: 'Cable Face Pulls',
+                sets: 3,
+                reps: '15',
+                rest: 60,
+                notes: 'Focus on rear delts and external rotation'
+            },
+            {
+                name: 'Bicep Curls (DB or Cable)',
+                sets: 3,
+                reps: '12',
+                rest: 60,
+                notes: 'Can superset with triceps to save time (90s rest between supersets)'
+            },
+            {
+                name: 'Tricep Extensions (Cable)',
+                sets: 3,
+                reps: '12',
+                rest: 60,
+                notes: 'Can superset with biceps to save time'
+            },
+            {
+                name: 'Pallof Press',
+                sets: 2,
+                reps: '10/side',
+                rest: 60,
+                category: 'core'
+            }
+        ],
+        notes: [
+            'Use same weight each session (don\'t progress)',
+            'Focus on form and muscle contraction',
+            'Skip if arms still sore from Upper A/B'
+        ]
+    },
+
+    zone2_cardio: {
+        id: 'zone2_cardio',
+        name: 'Zone 2 Cardio',
+        description: 'Cardiovascular health, active recovery',
+        duration: '30 minutes',
+        purpose: 'Cardiovascular health, active recovery',
+        bestFor: 'Any day Tue-Thu, especially after Upper days',
+        isOptional: true,
+        exercises: [
+            {
+                name: 'Zone 2 Cardio',
+                sets: 1,
+                reps: '30 min',
+                rest: 0,
+                category: 'cardio',
+                notes: 'Conversational pace. Options: bike, incline walk, elliptical, rowing, swimming'
+            }
+        ],
+        notes: [
+            'Can hold a conversation throughout',
+            'Heart rate ~60-70% max',
+            'Should feel easier as workout progresses',
+            'Don\'t turn this into HIIT or tempo work'
+        ]
+    },
+
+    core_mobility: {
+        id: 'core_mobility',
+        name: 'Core + Mobility',
+        description: 'Injury prevention, movement quality, feel better',
+        duration: '20 minutes',
+        purpose: 'Injury prevention, movement quality, feel better',
+        bestFor: 'Tuesday or Wednesday, especially during office weeks',
+        isOptional: true,
+        exercises: [
+            {
+                name: 'Thoracic Extensions',
+                sets: 1,
+                reps: '10 passes',
+                rest: 0,
+                notes: 'On foam roller'
+            },
+            {
+                name: 'Cat-Cow',
+                sets: 1,
+                reps: '15',
+                rest: 0
+            },
+            {
+                name: 'World\'s Greatest Stretch',
+                sets: 1,
+                reps: '5/side',
+                rest: 0
+            },
+            {
+                name: 'Wall Slides',
+                sets: 1,
+                reps: '10',
+                rest: 0
+            },
+            {
+                name: 'Hip 90/90 Stretches',
+                sets: 1,
+                reps: '60s/side',
+                rest: 0
+            },
+            {
+                name: 'Dead Bug',
+                sets: 3,
+                reps: '10/side',
+                rest: 30,
+                category: 'core'
+            },
+            {
+                name: 'Plank',
+                sets: 3,
+                reps: '45-60s',
+                rest: 30,
+                category: 'core'
+            },
+            {
+                name: 'Suitcase Carries',
+                sets: 2,
+                reps: '40 yards/side',
+                rest: 60,
+                category: 'core'
+            },
+            {
+                name: 'Bird Dog',
+                sets: 2,
+                reps: '10/side',
+                rest: 30,
+                category: 'core'
+            }
+        ],
+        notes: [
+            'Use this on days you feel stiff or tight',
+            'Particularly valuable during office weeks',
+            'Can do this at home if gym access is limited'
+        ]
+    },
+
+    upper_pump: {
+        id: 'upper_pump',
+        name: 'Upper Pump Session',
+        description: 'Extra volume without CNS fatigue',
+        duration: '30 minutes',
+        purpose: 'Extra volume without CNS fatigue before Friday\'s Upper A',
+        bestFor: 'Thursday of home weeks only',
+        isOptional: true,
+        exercises: [
+            {
+                name: 'Cable Press (any angle)',
+                sets: 3,
+                reps: '12-15',
+                rest: 90,
+                notes: 'Use 50-60% of your DB floor press weight equivalent'
+            },
+            {
+                name: 'Cable Row (any angle)',
+                sets: 3,
+                reps: '12-15',
+                rest: 90
+            },
+            {
+                name: 'Lateral Raises',
+                sets: 3,
+                reps: '15',
+                rest: 60,
+                notes: 'Very light weight, focus on deltoid burn'
+            },
+            {
+                name: 'Cable Curls',
+                sets: 2,
+                reps: '15',
+                rest: 60
+            },
+            {
+                name: 'Cable Tricep Pushdowns',
+                sets: 2,
+                reps: '15',
+                rest: 60
+            },
+            {
+                name: 'Pallof Press',
+                sets: 2,
+                reps: '10/side',
+                rest: 60,
+                category: 'core'
+            }
+        ],
+        notes: [
+            'Only on Thursday - gives 24h before Friday\'s Upper A',
+            'Never on Wednesday - too close to Friday\'s heavy work',
+            'Light weights, high reps, chase the pump',
+            'Skip entirely during office weeks'
+        ]
+    },
+
+    lower_accessories: {
+        id: 'lower_accessories',
+        name: 'Lower Body Accessories',
+        description: 'Extra glute/hamstring work, calf development',
+        duration: '25 minutes',
+        purpose: 'Extra glute/hamstring work, calf development',
+        bestFor: 'Wednesday of home weeks (between Lower A and Upper B)',
+        isOptional: true,
+        exercises: [
+            {
+                name: 'Glute Bridges',
+                sets: 3,
+                reps: '15-20',
+                rest: 60,
+                notes: 'Can add barbell across hips if desired'
+            },
+            {
+                name: 'Hamstring Curls',
+                sets: 3,
+                reps: '12-15',
+                rest: 60
+            },
+            {
+                name: 'Standing Calf Raises',
+                sets: 4,
+                reps: '20',
+                rest: 45
+            },
+            {
+                name: 'Adductor Machine',
+                sets: 2,
+                reps: '15',
+                rest: 60,
+                notes: 'If available'
+            },
+            {
+                name: 'Abductor Machine',
+                sets: 2,
+                reps: '15',
+                rest: 60,
+                notes: 'If available'
+            }
+        ],
+        notes: [
+            'Avoid heavy compound movements (squats, deadlifts)',
+            'Focus on isolation and muscle feel',
+            'Skip if still sore from Monday\'s Lower B'
+        ]
+    }
+};
+
+/**
+ * Get optional workout by ID
+ */
+function getOptionalWorkout(workoutId) {
+    return OPTIONAL_WORKOUTS[workoutId];
+}
+
+/**
+ * Get all optional workouts as array
+ */
+function getAllOptionalWorkouts() {
+    return Object.values(OPTIONAL_WORKOUTS);
+}
