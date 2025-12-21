@@ -15,6 +15,8 @@ const AppState = {
     timerInterval: null,
     remainingTime: 0,
     totalRestTime: 0,
+    timerEndTime: null, // Timestamp when timer should end
+    wakeLock: null, // Wake lock to keep screen on
     isAuthenticated: false,
     gapiInited: false,
     gisInited: false,
@@ -580,7 +582,7 @@ const UI = {
             `${completedExercises}/${workout.exercises.length} exercises completed`;
     },
 
-    // Start rest timer
+    // Start rest timer (timestamp-based for background accuracy)
     startRestTimer(duration) {
         // CRITICAL: Clear any existing timer first to prevent multiple intervals
         if (AppState.timerInterval) {
@@ -591,18 +593,25 @@ const UI = {
         AppState.totalRestTime = duration;
         AppState.isTimerRunning = true;
 
+        // Use timestamp for accurate background timing
+        AppState.timerEndTime = Date.now() + (duration * 1000);
+
         const timerElement = document.getElementById('rest-timer');
         timerElement.classList.remove('hidden');
 
         this.updateTimerDisplay();
 
         AppState.timerInterval = setInterval(() => {
-            AppState.remainingTime--;
+            // Calculate remaining time based on timestamp (immune to throttling)
+            const now = Date.now();
+            AppState.remainingTime = Math.max(0, Math.ceil((AppState.timerEndTime - now) / 1000));
+
             this.updateTimerDisplay();
 
             if (AppState.remainingTime <= 0) {
                 this.stopRestTimer();
                 this.playTimerAlert();
+                this.showNotification('Rest Complete', 'Time to start your next set!');
             }
         }, 1000);
     },
@@ -675,6 +684,64 @@ const UI = {
             indicator.classList.add('synced');
         } else if (status === 'syncing') {
             indicator.classList.add('syncing');
+        }
+    },
+
+    // Show browser notification
+    showNotification(title, body) {
+        // Check if notifications are supported and permitted
+        if (!('Notification' in window)) {
+            return;
+        }
+
+        if (Notification.permission === 'granted') {
+            new Notification(title, {
+                body: body,
+                icon: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y=".9em" font-size="90">💪</text></svg>',
+                badge: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y=".9em" font-size="90">💪</text></svg>',
+                vibrate: [200, 100, 200]
+            });
+        } else if (Notification.permission !== 'denied') {
+            // Request permission
+            Notification.requestPermission().then(permission => {
+                if (permission === 'granted') {
+                    new Notification(title, {
+                        body: body,
+                        icon: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y=".9em" font-size="90">💪</text></svg>',
+                        vibrate: [200, 100, 200]
+                    });
+                }
+            });
+        }
+    },
+
+    // Request wake lock to keep screen on
+    async requestWakeLock() {
+        if ('wakeLock' in navigator) {
+            try {
+                AppState.wakeLock = await navigator.wakeLock.request('screen');
+                console.log('Wake lock activated - screen will stay on');
+
+                AppState.wakeLock.addEventListener('release', () => {
+                    console.log('Wake lock released');
+                });
+            } catch (err) {
+                console.error('Wake lock failed:', err);
+            }
+        } else {
+            console.log('Wake Lock API not supported');
+        }
+    },
+
+    // Release wake lock
+    releaseWakeLock() {
+        if (AppState.wakeLock) {
+            AppState.wakeLock.release()
+                .then(() => {
+                    AppState.wakeLock = null;
+                    console.log('Wake lock released successfully');
+                })
+                .catch(err => console.error('Error releasing wake lock:', err));
         }
     },
 
@@ -1017,6 +1084,14 @@ const WorkoutController = {
             });
         });
 
+        // Request wake lock to keep screen on during workout
+        UI.requestWakeLock();
+
+        // Request notification permission if not already granted
+        if ('Notification' in window && Notification.permission === 'default') {
+            Notification.requestPermission();
+        }
+
         UI.switchView('workout');
         UI.renderFullWorkout();
     },
@@ -1150,6 +1225,7 @@ const WorkoutController = {
         AppState.currentWorkout = null;
         AppState.workoutData = [];
         UI.stopRestTimer();
+        UI.releaseWakeLock(); // Release wake lock when workout cancelled
         UI.switchView('home');
     }
 };
@@ -1169,6 +1245,11 @@ document.addEventListener('visibilitychange', () => {
         if (AppState.isTimerRunning) {
             UI.pauseRestTimer();
             console.log('Timer paused due to browser tab switch');
+        }
+    } else {
+        // Page is visible again - re-request wake lock if workout is active
+        if (AppState.currentWorkout && !AppState.wakeLock) {
+            UI.requestWakeLock();
         }
     }
 });
