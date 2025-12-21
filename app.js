@@ -309,10 +309,10 @@ const SheetsAPI = {
     },
 
     // Log a completed set to Workout Log sheet
-    async logSet(workoutType, exerciseName, setNumber, reps, weight, rest, notes = '') {
+    async logSet(workoutType, exerciseName, exerciseType = 'reps', setNumber, reps, weight, rest, notes = '') {
         const date = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
-        const row = [date, workoutType, exerciseName, setNumber, reps, weight, rest, notes];
-        await this.appendToSheet('Workout Log!A:H', [row]);
+        const row = [date, workoutType, exerciseName, exerciseType, setNumber, reps, weight, rest, notes];
+        await this.appendToSheet('Workout Log!A:I', [row]);
     },
 
     // Log completed workout to Workout History sheet
@@ -347,10 +347,16 @@ const SheetsAPI = {
         for (const workout of workoutsToSync) {
             // Log each set
             for (const exercise of workout.exercises) {
+                // Get exercise type from workout definition (defaults to 'reps')
+                const workoutDef = getWorkout(workout.workoutType) || getOptionalWorkout(workout.workoutType);
+                const exerciseDef = workoutDef?.exercises.find(e => e.name === exercise.name);
+                const exerciseType = exerciseDef?.exerciseType || 'reps';
+
                 for (const set of exercise.sets) {
                     await this.logSet(
                         workout.workoutType,
                         exercise.name,
+                        exerciseType,
                         set.setNumber,
                         set.reps,
                         set.weight,
@@ -521,48 +527,102 @@ const UI = {
             html += '</div>';
         }
 
-        // Sets grid
-        html += '<div class="sets-grid">';
-        for (let setNum = 1; setNum <= exercise.sets; setNum++) {
-            const prevSet = previousExercise?.sets[setNum - 1];
-            const prevWeight = prevSet ? prevSet.weight : '';
+        // Sets grid - different UI based on exercise type
+        const exerciseType = exercise.exerciseType || 'reps';
 
-            html += `<div class="set-row" data-set="${setNum}">`;
-            html += `<div class="set-number">${setNum}</div>`;
+        html += '<div class="sets-grid">';
+
+        if (exerciseType === 'duration') {
+            // Duration-based: single input for time + complete button
+            html += `<div class="duration-tracker">`;
+            html += `<label for="duration-input-${exerciseIndex}">Duration (minutes):</label>`;
             html += `<input type="number"
-                           class="reps-input"
-                           placeholder="Reps"
-                           inputmode="numeric"
-                           min="0"
-                           data-set="${setNum}"
-                           aria-label="Reps for set ${setNum}">`;
-            html += `<input type="number"
-                           class="weight-input"
-                           placeholder="lbs"
-                           value="${prevWeight}"
+                           id="duration-input-${exerciseIndex}"
+                           class="duration-input"
+                           placeholder="${exercise.targetDuration || '30'}"
                            inputmode="decimal"
-                           step="2.5"
                            min="0"
-                           data-set="${setNum}"
-                           aria-label="Weight for set ${setNum}">`;
-            html += `<div class="set-check">
-                       <input type="checkbox"
-                              class="set-checkbox"
-                              data-set="${setNum}"
-                              aria-label="Complete set ${setNum}">
-                     </div>`;
-            html += '</div>';
+                           step="0.5">`;
+            html += `<button class="btn-primary complete-duration-btn" data-exercise-index="${exerciseIndex}">
+                        Complete
+                     </button>`;
+            html += `</div>`;
+
+        } else if (exerciseType === 'completion') {
+            // Completion-based: simple checkbox
+            html += `<div class="completion-tracker">`;
+            html += `<label class="completion-label">
+                        <input type="checkbox"
+                               class="completion-checkbox"
+                               data-exercise-index="${exerciseIndex}">
+                        <span>Mark as completed</span>
+                     </label>`;
+            html += `<div class="completion-description">${exercise.reps}</div>`;
+            html += `</div>`;
+
+        } else {
+            // Traditional reps/weight tracking
+            for (let setNum = 1; setNum <= exercise.sets; setNum++) {
+                const prevSet = previousExercise?.sets[setNum - 1];
+                const prevWeight = prevSet ? prevSet.weight : '';
+
+                html += `<div class="set-row" data-set="${setNum}">`;
+                html += `<div class="set-number">${setNum}</div>`;
+                html += `<input type="number"
+                               class="reps-input"
+                               placeholder="Reps"
+                               inputmode="numeric"
+                               min="0"
+                               data-set="${setNum}"
+                               aria-label="Reps for set ${setNum}">`;
+                html += `<input type="number"
+                               class="weight-input"
+                               placeholder="lbs"
+                               value="${prevWeight}"
+                               inputmode="decimal"
+                               step="2.5"
+                               min="0"
+                               data-set="${setNum}"
+                               aria-label="Weight for set ${setNum}">`;
+                html += `<div class="set-check">
+                           <input type="checkbox"
+                                  class="set-checkbox"
+                                  data-set="${setNum}"
+                                  aria-label="Complete set ${setNum}">
+                         </div>`;
+                html += '</div>';
+            }
         }
+
         html += '</div>';
 
         card.innerHTML = html;
 
-        // Attach event listeners to checkboxes
-        card.querySelectorAll('.set-checkbox').forEach(checkbox => {
-            checkbox.addEventListener('change', (e) => {
-                WorkoutController.handleSetComplete(exerciseIndex, parseInt(e.target.dataset.set));
+        // Attach event listeners based on exercise type
+        const exerciseType = exercise.exerciseType || 'reps';
+
+        if (exerciseType === 'duration') {
+            // Duration exercise: complete button
+            const completeBtn = card.querySelector('.complete-duration-btn');
+            completeBtn.addEventListener('click', () => {
+                WorkoutController.handleDurationComplete(exerciseIndex);
             });
-        });
+
+        } else if (exerciseType === 'completion') {
+            // Completion exercise: checkbox
+            const completionCheckbox = card.querySelector('.completion-checkbox');
+            completionCheckbox.addEventListener('change', () => {
+                WorkoutController.handleCompletionToggle(exerciseIndex);
+            });
+
+        } else {
+            // Traditional reps/weight: set checkboxes
+            card.querySelectorAll('.set-checkbox').forEach(checkbox => {
+                checkbox.addEventListener('change', (e) => {
+                    WorkoutController.handleSetComplete(exerciseIndex, parseInt(e.target.dataset.set));
+                });
+            });
+        }
 
         // Attach event listener to substitution button
         const substituteBtn = card.querySelector('.btn-substitute');
@@ -1158,7 +1218,10 @@ const WorkoutController = {
             return;
         }
 
-        const workout = getWorkout(AppState.currentWorkout);
+        // Get workout from appropriate source
+        const workout = AppState.isOptionalWorkout
+            ? getOptionalWorkout(AppState.currentWorkout)
+            : getWorkout(AppState.currentWorkout);
         const exercise = workout.exercises[exerciseIndex];
 
         // Save set data
@@ -1187,6 +1250,7 @@ const WorkoutController = {
             SheetsAPI.logSet(
                 AppState.currentWorkout,
                 exercise.name,
+                exercise.exerciseType || 'reps',
                 setNumber,
                 reps,
                 weight,
@@ -1199,6 +1263,125 @@ const WorkoutController = {
 
         // Start rest timer
         UI.startRestTimer(exercise.rest);
+    },
+
+    // Handle duration-based exercise completion
+    handleDurationComplete(exerciseIndex) {
+        // Get workout and exercise
+        const workout = AppState.isOptionalWorkout
+            ? getOptionalWorkout(AppState.currentWorkout)
+            : getWorkout(AppState.currentWorkout);
+        const exercise = workout.exercises[exerciseIndex];
+
+        // Get duration input
+        const card = document.querySelector(`[data-exercise-index="${exerciseIndex}"]`);
+        const durationInput = card.querySelector('.duration-input');
+        const duration = parseFloat(durationInput.value);
+
+        // Validate
+        if (!duration || duration <= 0) {
+            alert('Please enter the duration completed (in minutes).');
+            return;
+        }
+
+        // Save set data (duration exercises typically have 1 set)
+        const setData = {
+            setNumber: 1,
+            reps: `${duration} min`,
+            weight: 0,
+            completed: true
+        };
+
+        // Add to workout data
+        const exerciseData = AppState.workoutData[exerciseIndex];
+        exerciseData.sets = [setData];
+
+        // Mark as completed
+        card.classList.add('completed');
+        durationInput.disabled = true;
+        const completeBtn = card.querySelector('.complete-duration-btn');
+        completeBtn.disabled = true;
+        completeBtn.textContent = '✓ Completed';
+
+        // Log to Google Sheets if authenticated
+        if (AppState.isAuthenticated) {
+            SheetsAPI.logSet(
+                AppState.currentWorkout,
+                exercise.name,
+                'duration',
+                1,
+                `${duration} min`,
+                0,
+                exercise.rest
+            );
+        }
+
+        // Update UI
+        UI.updateExerciseCard(exerciseIndex);
+
+        // Start rest timer if applicable
+        if (exercise.rest > 0) {
+            UI.startRestTimer(exercise.rest);
+        }
+    },
+
+    // Handle completion-based exercise toggle
+    handleCompletionToggle(exerciseIndex) {
+        // Get workout and exercise
+        const workout = AppState.isOptionalWorkout
+            ? getOptionalWorkout(AppState.currentWorkout)
+            : getWorkout(AppState.currentWorkout);
+        const exercise = workout.exercises[exerciseIndex];
+
+        // Get checkbox
+        const card = document.querySelector(`[data-exercise-index="${exerciseIndex}"]`);
+        const checkbox = card.querySelector('.completion-checkbox');
+
+        if (checkbox.checked) {
+            // Mark as completed
+            const setData = {
+                setNumber: 1,
+                reps: 'Completed',
+                weight: 0,
+                completed: true
+            };
+
+            // Add to workout data
+            const exerciseData = AppState.workoutData[exerciseIndex];
+            exerciseData.sets = [setData];
+
+            // Mark card as completed
+            card.classList.add('completed');
+
+            // Log to Google Sheets if authenticated
+            if (AppState.isAuthenticated) {
+                SheetsAPI.logSet(
+                    AppState.currentWorkout,
+                    exercise.name,
+                    'completion',
+                    1,
+                    'Completed',
+                    0,
+                    exercise.rest
+                );
+            }
+
+            // Update UI
+            UI.updateExerciseCard(exerciseIndex);
+
+            // Start rest timer if applicable
+            if (exercise.rest > 0) {
+                UI.startRestTimer(exercise.rest);
+            }
+        } else {
+            // Unchecked - remove from data
+            const exerciseData = AppState.workoutData[exerciseIndex];
+            exerciseData.sets = [];
+            card.classList.remove('completed');
+
+            // Update UI
+            UI.updateExerciseCard(exerciseIndex);
+        }
     },
 
     // Finish workout

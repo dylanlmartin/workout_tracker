@@ -901,7 +901,9 @@ const OPTIONAL_WORKOUTS = {
         exercises: [
             {
                 name: 'Zone 2 Cardio',
+                exerciseType: 'duration',
                 sets: 1,
+                targetDuration: 30, // minutes
                 reps: '30 min',
                 rest: 0,
                 category: 'cardio',
@@ -927,6 +929,7 @@ const OPTIONAL_WORKOUTS = {
         exercises: [
             {
                 name: 'Thoracic Extensions',
+                exerciseType: 'completion',
                 sets: 1,
                 reps: '10 passes',
                 rest: 0,
@@ -934,25 +937,30 @@ const OPTIONAL_WORKOUTS = {
             },
             {
                 name: 'Cat-Cow',
+                exerciseType: 'completion',
                 sets: 1,
                 reps: '15',
                 rest: 0
             },
             {
                 name: 'World\'s Greatest Stretch',
+                exerciseType: 'completion',
                 sets: 1,
                 reps: '5/side',
                 rest: 0
             },
             {
                 name: 'Wall Slides',
+                exerciseType: 'completion',
                 sets: 1,
                 reps: '10',
                 rest: 0
             },
             {
                 name: 'Hip 90/90 Stretches',
+                exerciseType: 'duration',
                 sets: 1,
+                targetDuration: 60, // seconds per side
                 reps: '60s/side',
                 rest: 0
             },
@@ -965,13 +973,16 @@ const OPTIONAL_WORKOUTS = {
             },
             {
                 name: 'Plank',
+                exerciseType: 'duration',
                 sets: 3,
+                targetDuration: 60, // seconds
                 reps: '45-60s',
                 rest: 30,
                 category: 'core'
             },
             {
                 name: 'Suitcase Carries',
+                exerciseType: 'completion',
                 sets: 2,
                 reps: '40 yards/side',
                 rest: 60,
