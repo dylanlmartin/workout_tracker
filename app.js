@@ -564,12 +564,16 @@ const UI = {
             const unitLabel = durationUnit === 'seconds' ? 'seconds' : 'minutes';
             const step = durationUnit === 'seconds' ? '1' : '0.5';
 
+            // Get previous duration if available
+            const prevDuration = previousExercise?.sets[0]?.reps?.match(/[\d.]+/)?.[0] || '';
+
             html += `<div class="duration-tracker">`;
             html += `<label for="duration-input-${exerciseIndex}">Duration (${unitLabel}):</label>`;
             html += `<input type="number"
                            id="duration-input-${exerciseIndex}"
                            class="duration-input"
                            placeholder="${exercise.targetDuration || '30'}"
+                           value="${prevDuration}"
                            inputmode="decimal"
                            min="0"
                            step="${step}"
@@ -595,13 +599,15 @@ const UI = {
             // Traditional reps/weight tracking
             for (let setNum = 1; setNum <= exercise.sets; setNum++) {
                 const prevSet = previousExercise?.sets[setNum - 1];
-                const prevWeight = prevSet ? prevSet.weight : '';
+                const prevReps = prevSet?.reps || '';
+                const prevWeight = prevSet?.weight || '';
 
                 html += `<div class="set-row" data-set="${setNum}">`;
                 html += `<div class="set-number">${setNum}</div>`;
                 html += `<input type="number"
                                class="reps-input"
                                placeholder="Reps"
+                               value="${prevReps}"
                                inputmode="numeric"
                                min="0"
                                data-set="${setNum}"
