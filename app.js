@@ -948,7 +948,7 @@ const UI = {
 
         historyList.innerHTML = workouts.map(workout => {
             const date = new Date(workout.date).toLocaleDateString();
-            const workoutInfo = getWorkout(workout.workoutType);
+            const workoutInfo = getWorkout(workout.workoutType) || getOptionalWorkout(workout.workoutType);
             const duration = Math.round(workout.duration / 60);
             const volume = SheetsAPI.calculateTotalVolume(workout);
 
@@ -1499,7 +1499,9 @@ const WorkoutController = {
         }
 
         // Add substitution information to exercises
-        const workout = getWorkout(AppState.currentWorkout);
+        const workout = AppState.isOptionalWorkout
+            ? getOptionalWorkout(AppState.currentWorkout)
+            : getWorkout(AppState.currentWorkout);
         completedExercises.forEach((exerciseData, index) => {
             const workoutExerciseIndex = workout.exercises.findIndex(e => e.name === exerciseData.name);
             if (AppState.substitutions[workoutExerciseIndex]) {
