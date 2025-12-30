@@ -491,65 +491,70 @@ const UI = {
             `${workout.exercises.length} exercises`;
 
         const container = document.getElementById('exercises-list');
-
-        // PRESERVE INPUT VALUES: Capture current input values before clearing
-        const currentInputValues = [];
-        container.querySelectorAll('.exercise-card').forEach((card, index) => {
-            const exerciseInputs = {
-                sets: [],
-                duration: null
-            };
-
-            // Capture traditional set inputs (reps/weight)
-            card.querySelectorAll('.set-row').forEach(row => {
-                const setNum = parseInt(row.dataset.set);
-                const repsInput = row.querySelector('.reps-input');
-                const weightInput = row.querySelector('.weight-input');
-                exerciseInputs.sets[setNum - 1] = {
-                    reps: repsInput?.value || '',
-                    weight: weightInput?.value || ''
-                };
-            });
-
-            // Capture duration input
-            const durationInput = card.querySelector('.duration-input');
-            if (durationInput) {
-                exerciseInputs.duration = durationInput.value;
-            }
-
-            currentInputValues[index] = exerciseInputs;
-        });
-
         container.innerHTML = '';
 
         workout.exercises.forEach((exercise, exerciseIndex) => {
             const exerciseCard = this.createExerciseCard(exercise, exerciseIndex, previousWorkout);
             container.appendChild(exerciseCard);
+        });
+    },
 
-            // RESTORE INPUT VALUES: Restore previously entered values
-            if (currentInputValues[exerciseIndex]) {
-                const inputs = currentInputValues[exerciseIndex];
+    // Update a single exercise card (e.g., when substitution is applied)
+    updateSingleExerciseCard(exerciseIndex) {
+        const workout = AppState.isOptionalWorkout
+            ? getOptionalWorkout(AppState.currentWorkout)
+            : getWorkout(AppState.currentWorkout);
+        const previousWorkout = Storage.getPreviousWorkout(AppState.currentWorkout);
+        const exercise = workout.exercises[exerciseIndex];
 
-                // Restore traditional set inputs
-                inputs.sets.forEach((setValues, setIndex) => {
-                    if (setValues && (setValues.reps || setValues.weight)) {
-                        const setRow = exerciseCard.querySelector(`.set-row[data-set="${setIndex + 1}"]`);
-                        if (setRow) {
-                            const repsInput = setRow.querySelector('.reps-input');
-                            const weightInput = setRow.querySelector('.weight-input');
-                            if (repsInput && setValues.reps) repsInput.value = setValues.reps;
-                            if (weightInput && setValues.weight) weightInput.value = setValues.weight;
-                        }
-                    }
-                });
+        // Find the old card and capture its input values
+        const oldCard = document.querySelector(`[data-exercise-index="${exerciseIndex}"]`);
+        if (!oldCard) return;
 
-                // Restore duration input
-                if (inputs.duration) {
-                    const durationInput = exerciseCard.querySelector('.duration-input');
-                    if (durationInput) durationInput.value = inputs.duration;
+        const preservedInputs = {
+            sets: [],
+            duration: null
+        };
+
+        // Capture current input values
+        oldCard.querySelectorAll('.set-row').forEach(row => {
+            const setNum = parseInt(row.dataset.set);
+            const repsInput = row.querySelector('.reps-input');
+            const weightInput = row.querySelector('.weight-input');
+            preservedInputs.sets[setNum - 1] = {
+                reps: repsInput?.value || '',
+                weight: weightInput?.value || ''
+            };
+        });
+
+        const durationInput = oldCard.querySelector('.duration-input');
+        if (durationInput) {
+            preservedInputs.duration = durationInput.value;
+        }
+
+        // Create new card with updated exercise info
+        const newCard = this.createExerciseCard(exercise, exerciseIndex, previousWorkout);
+
+        // Restore input values to new card
+        preservedInputs.sets.forEach((setValues, setIndex) => {
+            if (setValues && (setValues.reps || setValues.weight)) {
+                const setRow = newCard.querySelector(`.set-row[data-set="${setIndex + 1}"]`);
+                if (setRow) {
+                    const repsInput = setRow.querySelector('.reps-input');
+                    const weightInput = setRow.querySelector('.weight-input');
+                    if (repsInput && setValues.reps) repsInput.value = setValues.reps;
+                    if (weightInput && setValues.weight) weightInput.value = setValues.weight;
                 }
             }
         });
+
+        if (preservedInputs.duration) {
+            const newDurationInput = newCard.querySelector('.duration-input');
+            if (newDurationInput) newDurationInput.value = preservedInputs.duration;
+        }
+
+        // Replace old card with new card
+        oldCard.replaceWith(newCard);
     },
 
     // Create an exercise card element
@@ -1215,8 +1220,8 @@ const SubstitutionController = {
         // Save substitution
         AppState.substitutions[exerciseIndex] = substitutionName;
 
-        // Re-render the workout to show the substitution
-        UI.renderFullWorkout();
+        // Update only the affected exercise card
+        UI.updateSingleExerciseCard(exerciseIndex);
 
         // Close modal
         this.closeSubstitutionModal();
@@ -1229,8 +1234,8 @@ const SubstitutionController = {
         // Remove substitution
         delete AppState.substitutions[exerciseIndex];
 
-        // Re-render the workout
-        UI.renderFullWorkout();
+        // Update only the affected exercise card
+        UI.updateSingleExerciseCard(exerciseIndex);
 
         // Close modal
         this.closeSubstitutionModal();
