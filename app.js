@@ -491,11 +491,64 @@ const UI = {
             `${workout.exercises.length} exercises`;
 
         const container = document.getElementById('exercises-list');
+
+        // PRESERVE INPUT VALUES: Capture current input values before clearing
+        const currentInputValues = [];
+        container.querySelectorAll('.exercise-card').forEach((card, index) => {
+            const exerciseInputs = {
+                sets: [],
+                duration: null
+            };
+
+            // Capture traditional set inputs (reps/weight)
+            card.querySelectorAll('.set-row').forEach(row => {
+                const setNum = parseInt(row.dataset.set);
+                const repsInput = row.querySelector('.reps-input');
+                const weightInput = row.querySelector('.weight-input');
+                exerciseInputs.sets[setNum - 1] = {
+                    reps: repsInput?.value || '',
+                    weight: weightInput?.value || ''
+                };
+            });
+
+            // Capture duration input
+            const durationInput = card.querySelector('.duration-input');
+            if (durationInput) {
+                exerciseInputs.duration = durationInput.value;
+            }
+
+            currentInputValues[index] = exerciseInputs;
+        });
+
         container.innerHTML = '';
 
         workout.exercises.forEach((exercise, exerciseIndex) => {
             const exerciseCard = this.createExerciseCard(exercise, exerciseIndex, previousWorkout);
             container.appendChild(exerciseCard);
+
+            // RESTORE INPUT VALUES: Restore previously entered values
+            if (currentInputValues[exerciseIndex]) {
+                const inputs = currentInputValues[exerciseIndex];
+
+                // Restore traditional set inputs
+                inputs.sets.forEach((setValues, setIndex) => {
+                    if (setValues && (setValues.reps || setValues.weight)) {
+                        const setRow = exerciseCard.querySelector(`.set-row[data-set="${setIndex + 1}"]`);
+                        if (setRow) {
+                            const repsInput = setRow.querySelector('.reps-input');
+                            const weightInput = setRow.querySelector('.weight-input');
+                            if (repsInput && setValues.reps) repsInput.value = setValues.reps;
+                            if (weightInput && setValues.weight) weightInput.value = setValues.weight;
+                        }
+                    }
+                });
+
+                // Restore duration input
+                if (inputs.duration) {
+                    const durationInput = exerciseCard.querySelector('.duration-input');
+                    if (durationInput) durationInput.value = inputs.duration;
+                }
+            }
         });
     },
 
@@ -676,7 +729,9 @@ const UI = {
     updateExerciseCard(exerciseIndex) {
         const card = document.querySelector(`[data-exercise-index="${exerciseIndex}"]`);
         const exerciseData = AppState.workoutData[exerciseIndex];
-        const workout = getWorkout(AppState.currentWorkout);
+        const workout = AppState.isOptionalWorkout
+            ? getOptionalWorkout(AppState.currentWorkout)
+            : getWorkout(AppState.currentWorkout);
         const exercise = workout.exercises[exerciseIndex];
 
         // Check if all sets are completed
@@ -690,7 +745,9 @@ const UI = {
 
     // Update overall workout progress
     updateWorkoutProgress() {
-        const workout = getWorkout(AppState.currentWorkout);
+        const workout = AppState.isOptionalWorkout
+            ? getOptionalWorkout(AppState.currentWorkout)
+            : getWorkout(AppState.currentWorkout);
         const completedExercises = AppState.workoutData.filter(e =>
             e.sets.length === workout.exercises.find(ex => ex.name === e.name).sets
         ).length;
