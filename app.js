@@ -1354,7 +1354,9 @@ const WorkoutController = {
                 reps,
                 weight,
                 exercise.rest
-            );
+            ).catch(error => {
+                console.error('Failed to log set to Google Sheets:', error);
+            });
         }
 
         // Update UI
@@ -1415,7 +1417,9 @@ const WorkoutController = {
                 `${duration}${unitAbbrev}`,
                 0,
                 exercise.rest
-            );
+            ).catch(error => {
+                console.error('Failed to log duration to Google Sheets:', error);
+            });
         }
 
         // Update UI
@@ -1465,7 +1469,9 @@ const WorkoutController = {
                     'Completed',
                     0,
                     exercise.rest
-                );
+                ).catch(error => {
+                    console.error('Failed to log completion to Google Sheets:', error);
+                });
             }
 
             // Update UI
@@ -1530,7 +1536,9 @@ const WorkoutController = {
                 volume,
                 duration,
                 completedExercises.length
-            );
+            ).catch(error => {
+                console.error('Failed to log workout summary to Google Sheets:', error);
+            });
         }
 
         alert(`Workout complete!\nDuration: ${Math.round(duration / 60)} minutes\nExercises: ${completedExercises.length}`);
