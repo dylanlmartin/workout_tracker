@@ -499,6 +499,64 @@ const UI = {
         });
     },
 
+    // Update a single exercise card (e.g., when substitution is applied)
+    updateSingleExerciseCard(exerciseIndex) {
+        const workout = AppState.isOptionalWorkout
+            ? getOptionalWorkout(AppState.currentWorkout)
+            : getWorkout(AppState.currentWorkout);
+        const previousWorkout = Storage.getPreviousWorkout(AppState.currentWorkout);
+        const exercise = workout.exercises[exerciseIndex];
+
+        // Find the old card and capture its input values
+        const oldCard = document.querySelector(`[data-exercise-index="${exerciseIndex}"]`);
+        if (!oldCard) return;
+
+        const preservedInputs = {
+            sets: [],
+            duration: null
+        };
+
+        // Capture current input values
+        oldCard.querySelectorAll('.set-row').forEach(row => {
+            const setNum = parseInt(row.dataset.set);
+            const repsInput = row.querySelector('.reps-input');
+            const weightInput = row.querySelector('.weight-input');
+            preservedInputs.sets[setNum - 1] = {
+                reps: repsInput?.value || '',
+                weight: weightInput?.value || ''
+            };
+        });
+
+        const durationInput = oldCard.querySelector('.duration-input');
+        if (durationInput) {
+            preservedInputs.duration = durationInput.value;
+        }
+
+        // Create new card with updated exercise info
+        const newCard = this.createExerciseCard(exercise, exerciseIndex, previousWorkout);
+
+        // Restore input values to new card
+        preservedInputs.sets.forEach((setValues, setIndex) => {
+            if (setValues && (setValues.reps || setValues.weight)) {
+                const setRow = newCard.querySelector(`.set-row[data-set="${setIndex + 1}"]`);
+                if (setRow) {
+                    const repsInput = setRow.querySelector('.reps-input');
+                    const weightInput = setRow.querySelector('.weight-input');
+                    if (repsInput && setValues.reps) repsInput.value = setValues.reps;
+                    if (weightInput && setValues.weight) weightInput.value = setValues.weight;
+                }
+            }
+        });
+
+        if (preservedInputs.duration) {
+            const newDurationInput = newCard.querySelector('.duration-input');
+            if (newDurationInput) newDurationInput.value = preservedInputs.duration;
+        }
+
+        // Replace old card with new card
+        oldCard.replaceWith(newCard);
+    },
+
     // Create an exercise card element
     createExerciseCard(exercise, exerciseIndex, previousWorkout) {
         const card = document.createElement('div');
@@ -676,7 +734,9 @@ const UI = {
     updateExerciseCard(exerciseIndex) {
         const card = document.querySelector(`[data-exercise-index="${exerciseIndex}"]`);
         const exerciseData = AppState.workoutData[exerciseIndex];
-        const workout = getWorkout(AppState.currentWorkout);
+        const workout = AppState.isOptionalWorkout
+            ? getOptionalWorkout(AppState.currentWorkout)
+            : getWorkout(AppState.currentWorkout);
         const exercise = workout.exercises[exerciseIndex];
 
         // Check if all sets are completed
@@ -690,7 +750,9 @@ const UI = {
 
     // Update overall workout progress
     updateWorkoutProgress() {
-        const workout = getWorkout(AppState.currentWorkout);
+        const workout = AppState.isOptionalWorkout
+            ? getOptionalWorkout(AppState.currentWorkout)
+            : getWorkout(AppState.currentWorkout);
         const completedExercises = AppState.workoutData.filter(e =>
             e.sets.length === workout.exercises.find(ex => ex.name === e.name).sets
         ).length;
@@ -886,7 +948,7 @@ const UI = {
 
         historyList.innerHTML = workouts.map(workout => {
             const date = new Date(workout.date).toLocaleDateString();
-            const workoutInfo = getWorkout(workout.workoutType);
+            const workoutInfo = getWorkout(workout.workoutType) || getOptionalWorkout(workout.workoutType);
             const duration = Math.round(workout.duration / 60);
             const volume = SheetsAPI.calculateTotalVolume(workout);
 
@@ -1158,8 +1220,8 @@ const SubstitutionController = {
         // Save substitution
         AppState.substitutions[exerciseIndex] = substitutionName;
 
-        // Re-render the workout to show the substitution
-        UI.renderFullWorkout();
+        // Update only the affected exercise card
+        UI.updateSingleExerciseCard(exerciseIndex);
 
         // Close modal
         this.closeSubstitutionModal();
@@ -1172,8 +1234,8 @@ const SubstitutionController = {
         // Remove substitution
         delete AppState.substitutions[exerciseIndex];
 
-        // Re-render the workout
-        UI.renderFullWorkout();
+        // Update only the affected exercise card
+        UI.updateSingleExerciseCard(exerciseIndex);
 
         // Close modal
         this.closeSubstitutionModal();
@@ -1292,7 +1354,9 @@ const WorkoutController = {
                 reps,
                 weight,
                 exercise.rest
-            );
+            ).catch(error => {
+                console.error('Failed to log set to Google Sheets:', error);
+            });
         }
 
         // Update UI
@@ -1353,7 +1417,9 @@ const WorkoutController = {
                 `${duration}${unitAbbrev}`,
                 0,
                 exercise.rest
-            );
+            ).catch(error => {
+                console.error('Failed to log duration to Google Sheets:', error);
+            });
         }
 
         // Update UI
@@ -1403,7 +1469,9 @@ const WorkoutController = {
                     'Completed',
                     0,
                     exercise.rest
-                );
+                ).catch(error => {
+                    console.error('Failed to log completion to Google Sheets:', error);
+                });
             }
 
             // Update UI
@@ -1437,7 +1505,9 @@ const WorkoutController = {
         }
 
         // Add substitution information to exercises
-        const workout = getWorkout(AppState.currentWorkout);
+        const workout = AppState.isOptionalWorkout
+            ? getOptionalWorkout(AppState.currentWorkout)
+            : getWorkout(AppState.currentWorkout);
         completedExercises.forEach((exerciseData, index) => {
             const workoutExerciseIndex = workout.exercises.findIndex(e => e.name === exerciseData.name);
             if (AppState.substitutions[workoutExerciseIndex]) {
@@ -1466,7 +1536,9 @@ const WorkoutController = {
                 volume,
                 duration,
                 completedExercises.length
-            );
+            ).catch(error => {
+                console.error('Failed to log workout summary to Google Sheets:', error);
+            });
         }
 
         alert(`Workout complete!\nDuration: ${Math.round(duration / 60)} minutes\nExercises: ${completedExercises.length}`);
