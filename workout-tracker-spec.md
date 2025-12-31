@@ -752,25 +752,27 @@ The target spreadsheet (ID: `115OSeN_PePPBGH_bSbaDOJj_vypCRb5yjiGXzbIFLo0`) shou
 1. Share settings: “Anyone with the link can edit” OR specific Google account access
 1. The app will read from Exercise Library and write to all sheets
 
-#### Sheet 1: “Workout Log”
+#### Sheet 1: "Workout Log"
 
 Columns:
 
 - A: Date (YYYY-MM-DD format)
-- B: Workout Type (Upper A, Lower A, Upper B, Lower B)
+- B: Workout Type (Upper A, Lower A, Upper B, Lower B, Quick Upper Accessory, etc.)
 - C: Exercise Name
-- D: Set Number (1, 2, 3, etc.)
-- E: Reps Completed
-- F: Weight Used (lbs)
-- G: Rest Time (seconds)
-- H: Notes (optional)
+- D: Exercise Type (reps, duration, completion)
+- E: Set Number (1, 2, 3, etc.)
+- F: Reps Completed (or duration like "30min" or "Completed")
+- G: Weight Used (lbs, 0 for bodyweight/cardio)
+- H: Rest Time (seconds)
+- I: Notes (optional)
 
 Example rows:
 
 ```
-2024-12-15 | Upper A | Neutral-Grip DB Floor Press | 1 | 12 | 50 | 180 | Good form
-2024-12-15 | Upper A | Neutral-Grip DB Floor Press | 2 | 12 | 50 | 180 |
-2024-12-15 | Upper A | Neutral-Grip DB Floor Press | 3 | 11 | 50 | 180 |
+2024-12-15 | Upper A | Neutral-Grip DB Floor Press | reps | 1 | 12 | 50 | 180 | Good form
+2024-12-15 | Upper A | Neutral-Grip DB Floor Press | reps | 2 | 12 | 50 | 180 |
+2024-12-15 | Zone 2 Cardio | Zone 2 Cardio | duration | 1 | 30min | 0 | 0 | Bike
+2024-12-15 | Core + Mobility | Cat-Cow | reps | 1 | 10 | 0 | 30 |
 ```
 
 #### Sheet 2: “Exercise Library”
@@ -802,18 +804,19 @@ Columns:
 
 This sheet tracks progression status for each exercise using formulas.
 
-#### Sheet 4: “Workout History”
+#### Sheet 4: "Workout History"
 
 Columns:
 
-- A: Date
-- B: Workout Type
-- C: Total Volume (sum of sets × reps × weight)
-- D: Duration (minutes)
-- E: Exercises Completed
-- F: Notes
+- A: Date (YYYY-MM-DD format)
+- B: Workout Name (e.g., "Upper A", "Lower B", "Quick Upper Accessory")
+- C: Workout Type (internal ID: upper_a, lower_b, quick_upper, etc.)
+- D: Total Volume (sum of sets × reps × weight in lbs)
+- E: Duration (minutes)
+- F: Exercises Completed (count)
+- G: Notes
 
-Summary view of each workout session.
+Summary view of each workout session. The app fetches workout history from this sheet when authenticated.
 
 ### API Operations
 
@@ -827,7 +830,7 @@ Summary view of each workout session.
 
 **Get Last Workout Data:**
 
-- Range: `'Workout Log'!A2:H`
+- Range: `'Workout Log'!A2:I`
 - Filter: Most recent date + matching exercise name
 - Returns: Previous performance for comparison
 - Used: When starting an exercise
@@ -842,9 +845,9 @@ Summary view of each workout session.
 
 **Log Completed Set:**
 
-- Range: `'Workout Log'!A:H`
+- Range: `'Workout Log'!A:I`
 - Operation: Append row
-- Data: Date, workout type, exercise, set #, reps, weight, rest, notes
+- Data: Date, workout type, exercise name, exercise type, set #, reps, weight, rest, notes
 - Triggered: After each set completion
 
 **Update Progression:**
@@ -856,10 +859,17 @@ Summary view of each workout session.
 
 **Log Workout Summary:**
 
-- Range: `'Workout History'!A:E`
+- Range: `'Workout History'!A:G`
 - Operation: Append row
-- Data: Date, workout type, total volume, duration, exercise count
+- Data: Date, workout name, workout type ID, total volume, duration (minutes), exercise count, notes
 - Triggered: When workout marked complete
+
+**Fetch Workout History:**
+
+- Range: `'Workout History'!A:G`
+- Operation: Read all rows
+- Returns: Array of completed workout summaries
+- Triggered: When viewing History tab (if authenticated)
 
 ### Data Sync Strategy
 
