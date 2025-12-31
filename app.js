@@ -316,10 +316,40 @@ const SheetsAPI = {
     },
 
     // Log completed workout to Workout History sheet
-    async logWorkoutSummary(workoutType, totalVolume, duration, exerciseCount, notes = '') {
+    async logWorkoutSummary(workoutType, workoutName, totalVolume, duration, exerciseCount, notes = '') {
         const date = new Date().toISOString().split('T')[0];
-        const row = [date, workoutType, totalVolume, Math.round(duration / 60), exerciseCount, notes];
-        await this.appendToSheet('Workout History!A:F', [row]);
+        const row = [date, workoutName, workoutType, totalVolume, Math.round(duration / 60), exerciseCount, notes];
+        await this.appendToSheet('Workout History!A:G', [row]);
+    },
+
+    // Fetch workout history from Google Sheets
+    async fetchWorkoutHistory() {
+        try {
+            const response = await gapi.client.sheets.spreadsheets.values.get({
+                spreadsheetId: this.spreadsheetId,
+                range: 'Workout History!A:G',
+            });
+
+            const rows = response.result.values;
+            if (!rows || rows.length <= 1) {
+                // No data (only header or empty)
+                return [];
+            }
+
+            // Skip header row and convert to workout objects
+            return rows.slice(1).map(row => ({
+                date: row[0],
+                workoutName: row[1],
+                workoutType: row[2],
+                totalVolume: parseFloat(row[3]) || 0,
+                duration: parseInt(row[4]) || 0, // in minutes
+                exerciseCount: parseInt(row[5]) || 0,
+                notes: row[6] || ''
+            }));
+        } catch (error) {
+            console.error('Error fetching workout history:', error);
+            throw error;
+        }
     },
 
     // Sync local data to Google Sheets
@@ -367,8 +397,11 @@ const SheetsAPI = {
 
             // Log workout summary
             const totalVolume = this.calculateTotalVolume(workout);
+            const workoutDef = getWorkout(workout.workoutType) || getOptionalWorkout(workout.workoutType);
+            const workoutName = workoutDef?.name || workout.workoutType;
             await this.logWorkoutSummary(
                 workout.workoutType,
+                workoutName,
                 totalVolume,
                 workout.duration,
                 workout.exercises.length
@@ -935,35 +968,75 @@ const UI = {
     },
 
     // Render workout history
-    renderHistory() {
+    async renderHistory() {
         const historyList = document.getElementById('history-list');
-        const workouts = Storage.getAllWorkouts().sort((a, b) =>
-            new Date(b.date) - new Date(a.date)
-        );
+
+        // Show loading state
+        historyList.innerHTML = '<p style="color: var(--text-secondary);">Loading workout history...</p>';
+
+        let workouts = [];
+
+        // Fetch from Google Sheets if authenticated
+        if (AppState.isAuthenticated) {
+            try {
+                workouts = await SheetsAPI.fetchWorkoutHistory();
+            } catch (error) {
+                console.error('Failed to fetch workout history from Google Sheets:', error);
+                // Fall back to localStorage on error
+                historyList.innerHTML = '<p style="color: var(--warning);">Failed to load from Google Sheets. Showing local data.</p>';
+                workouts = Storage.getAllWorkouts();
+            }
+        } else {
+            // Use localStorage when not authenticated
+            workouts = Storage.getAllWorkouts();
+        }
+
+        // Sort by date (newest first)
+        workouts.sort((a, b) => new Date(b.date) - new Date(a.date));
 
         if (workouts.length === 0) {
             historyList.innerHTML = '<p style="color: var(--text-secondary);">No workout history yet. Start your first workout!</p>';
             return;
         }
 
-        historyList.innerHTML = workouts.map(workout => {
-            const date = new Date(workout.date).toLocaleDateString();
-            const workoutInfo = getWorkout(workout.workoutType) || getOptionalWorkout(workout.workoutType);
-            const duration = Math.round(workout.duration / 60);
-            const volume = SheetsAPI.calculateTotalVolume(workout);
-
-            return `
-                <div class="history-item">
-                    <h3>${workoutInfo.name}</h3>
-                    <div class="date">${date}</div>
-                    <div class="summary">
-                        ${workout.exercises.length} exercises •
-                        ${duration} minutes •
-                        ${volume.toLocaleString()} lbs total volume
+        // Render workout history
+        if (AppState.isAuthenticated) {
+            // From Google Sheets - data is already formatted
+            historyList.innerHTML = workouts.map(workout => {
+                const date = new Date(workout.date).toLocaleDateString();
+                return `
+                    <div class="history-item">
+                        <h3>${workout.workoutName}</h3>
+                        <div class="date">${date}</div>
+                        <div class="summary">
+                            ${workout.exerciseCount} exercises •
+                            ${workout.duration} minutes •
+                            ${workout.totalVolume.toLocaleString()} lbs total volume
+                        </div>
                     </div>
-                </div>
-            `;
-        }).join('');
+                `;
+            }).join('');
+        } else {
+            // From localStorage - need to calculate from workout data
+            historyList.innerHTML = workouts.map(workout => {
+                const date = new Date(workout.date).toLocaleDateString();
+                const workoutInfo = getWorkout(workout.workoutType) || getOptionalWorkout(workout.workoutType);
+                const duration = Math.round(workout.duration / 60);
+                const volume = SheetsAPI.calculateTotalVolume(workout);
+
+                return `
+                    <div class="history-item">
+                        <h3>${workoutInfo.name}</h3>
+                        <div class="date">${date}</div>
+                        <div class="summary">
+                            ${workout.exercises.length} exercises •
+                            ${duration} minutes •
+                            ${volume.toLocaleString()} lbs total volume
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
     },
 
     // Load and apply theme
@@ -1533,6 +1606,7 @@ const WorkoutController = {
             const volume = SheetsAPI.calculateTotalVolume(workoutLog);
             SheetsAPI.logWorkoutSummary(
                 AppState.currentWorkout,
+                workout.name,
                 volume,
                 duration,
                 completedExercises.length

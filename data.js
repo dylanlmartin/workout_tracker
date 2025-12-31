@@ -80,17 +80,17 @@ const WORKOUTS = {
             },
             {
                 name: 'Bicep Curls (Myo-reps)',
-                sets: 2,
+                sets: 4,
                 reps: '12-15+3x3-5',
-                rest: 30,
-                notes: 'Activation set: 12-15 reps to near failure. Rest 15s. Do 3 mini-sets of 3-5 reps with 15s rest.'
+                rest: 15,
+                notes: 'Set 1: Activation set (12-15 reps to near failure). Sets 2-4: Mini-sets (3-5 reps each) with 15s rest between.'
             },
             {
                 name: 'Tricep Pushdowns (Myo-reps)',
-                sets: 2,
+                sets: 4,
                 reps: '12-15+3x3-5',
-                rest: 30,
-                notes: 'Activation set: 12-15 reps to near failure. Rest 15s. Do 3 mini-sets of 3-5 reps with 15s rest.'
+                rest: 15,
+                notes: 'Set 1: Activation set (12-15 reps to near failure). Sets 2-4: Mini-sets (3-5 reps each) with 15s rest between.'
             },
             {
                 name: 'Pallof Press',
@@ -172,8 +172,11 @@ const WORKOUTS = {
             },
             {
                 name: 'HIIT Bike Intervals',
+                exerciseType: 'duration',
                 sets: 1,
-                reps: '10x30s/30s',
+                targetDuration: 10, // minutes
+                durationUnit: 'minutes',
+                reps: '10 min',
                 rest: 0,
                 category: 'cardio',
                 notes: '10 rounds: 30s all-out sprint, 30s easy recovery. Total 10 minutes.'
@@ -315,7 +318,10 @@ const WORKOUTS = {
             },
             {
                 name: 'Steady-State Cardio',
+                exerciseType: 'duration',
                 sets: 1,
+                targetDuration: 20, // minutes
+                durationUnit: 'minutes',
                 reps: '20 min',
                 rest: 0,
                 category: 'cardio',
