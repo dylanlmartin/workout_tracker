@@ -759,24 +759,45 @@ const UI = {
             card.classList.add('substituted');
         }
 
-        // Get previous data for this exercise (use original name for history)
-        const previousExercise = previousWorkout?.exercises.find(e => e.name === exercise.name);
+        // Get the actual exercise definition (substituted or original)
+        let actualExercise = exercise;
+        if (isSubstituted) {
+            // Look up the substitution exercise details
+            const subs = getSubstitutions(exercise.name);
+            const subExercise = subs.exercises.find(e => e.name === substitutedName);
+            if (subExercise) {
+                // Use substitution exercise details for notes, sets, reps, etc.
+                actualExercise = {
+                    ...exercise,
+                    name: substitutedName,
+                    notes: subExercise.notes || exercise.notes,
+                    sets: subExercise.sets || exercise.sets,
+                    reps: subExercise.reps || exercise.reps,
+                    rest: subExercise.rest || exercise.rest
+                };
+            }
+        }
+
+        // Get previous data for this exercise (use substituted name if applicable)
+        const lookupName = isSubstituted ? substitutedName : exercise.name;
+        const previousExercise = previousWorkout?.exercises.find(e => e.name === lookupName);
 
         let html = '<div class="exercise-header">';
         html += `<h3>${displayName}</h3>`;
-        if (exercise.category) {
-            html += `<span class="exercise-badge ${exercise.category}">${exercise.category}</span>`;
+        if (actualExercise.category || exercise.category) {
+            const category = actualExercise.category || exercise.category;
+            html += `<span class="exercise-badge ${category}">${category}</span>`;
         }
         html += '</div>';
 
-        html += `<div class="exercise-meta">${exercise.sets} sets × ${exercise.reps} reps • ${exercise.rest}s rest</div>`;
+        html += `<div class="exercise-meta">${actualExercise.sets} sets × ${actualExercise.reps} reps • ${actualExercise.rest}s rest</div>`;
 
         if (exercise.superset) {
             html += `<span class="superset-indicator">⚡ Superset with ${exercise.superset}</span>`;
         }
 
-        if (exercise.notes) {
-            html += `<div class="exercise-notes">${exercise.notes}</div>`;
+        if (actualExercise.notes) {
+            html += `<div class="exercise-notes">${actualExercise.notes}</div>`;
         }
 
         // Substitution button (only show if substitutions are available)
@@ -798,13 +819,13 @@ const UI = {
         }
 
         // Sets grid - different UI based on exercise type
-        const exerciseType = exercise.exerciseType || 'reps';
+        const exerciseType = actualExercise.exerciseType || 'reps';
 
         html += '<div class="sets-grid">';
 
         if (exerciseType === 'duration') {
-            // Duration-based: single input for time + complete button
-            const durationUnit = exercise.durationUnit || 'minutes';
+            // Duration-based: single input for time + timer + complete button
+            const durationUnit = actualExercise.durationUnit || 'minutes';
             const unitLabel = durationUnit === 'seconds' ? 'seconds' : 'minutes';
             const step = durationUnit === 'seconds' ? '1' : '0.5';
 
@@ -813,15 +834,29 @@ const UI = {
 
             html += `<div class="duration-tracker">`;
             html += `<label for="duration-input-${exerciseIndex}">Duration (${unitLabel}):</label>`;
+            html += `<div class="duration-input-row">`;
             html += `<input type="number"
                            id="duration-input-${exerciseIndex}"
                            class="duration-input"
-                           placeholder="${exercise.targetDuration || '30'}"
+                           placeholder="${actualExercise.targetDuration || '30'}"
                            value="${prevDuration}"
                            inputmode="decimal"
                            min="0"
                            step="${step}"
                            data-unit="${durationUnit}">`;
+            html += `<button class="btn-secondary start-duration-timer-btn"
+                           data-exercise-index="${exerciseIndex}"
+                           data-target="${actualExercise.targetDuration || '30'}"
+                           data-unit="${durationUnit}">
+                        ⏱️ Start Timer
+                     </button>`;
+            html += `</div>`;
+            html += `<div class="duration-timer-display hidden" id="duration-timer-${exerciseIndex}">
+                        <span class="duration-timer-time">0:00</span>
+                        <button class="btn-danger stop-duration-timer-btn" data-exercise-index="${exerciseIndex}">
+                            Stop & Save
+                        </button>
+                     </div>`;
             html += `<button class="btn-primary complete-duration-btn" data-exercise-index="${exerciseIndex}">
                         Complete
                      </button>`;
@@ -836,12 +871,12 @@ const UI = {
                                data-exercise-index="${exerciseIndex}">
                         <span>Mark as completed</span>
                      </label>`;
-            html += `<div class="completion-description">${exercise.reps}</div>`;
+            html += `<div class="completion-description">${actualExercise.reps}</div>`;
             html += `</div>`;
 
         } else {
             // Traditional reps/weight tracking
-            for (let setNum = 1; setNum <= exercise.sets; setNum++) {
+            for (let setNum = 1; setNum <= actualExercise.sets; setNum++) {
                 const prevSet = previousExercise?.sets[setNum - 1];
                 const prevReps = prevSet?.reps || '';
                 const prevWeight = prevSet?.weight || '';
@@ -883,10 +918,20 @@ const UI = {
         // (exerciseType already declared above when building UI)
 
         if (exerciseType === 'duration') {
-            // Duration exercise: complete button
+            // Duration exercise: complete button and timer buttons
             const completeBtn = card.querySelector('.complete-duration-btn');
             completeBtn.addEventListener('click', () => {
                 WorkoutController.handleDurationComplete(exerciseIndex);
+            });
+
+            const startTimerBtn = card.querySelector('.start-duration-timer-btn');
+            startTimerBtn.addEventListener('click', () => {
+                WorkoutController.startDurationTimer(exerciseIndex);
+            });
+
+            const stopTimerBtn = card.querySelector('.stop-duration-timer-btn');
+            stopTimerBtn.addEventListener('click', () => {
+                WorkoutController.stopDurationTimer(exerciseIndex);
             });
 
         } else if (exerciseType === 'completion') {
@@ -969,6 +1014,7 @@ const UI = {
 
         const timerElement = document.getElementById('rest-timer');
         timerElement.classList.remove('hidden');
+        timerElement.classList.remove('compact'); // Start in full mode
 
         // Reset pause button text
         document.getElementById('pause-timer-btn').textContent = 'Pause';
@@ -984,10 +1030,33 @@ const UI = {
 
             if (AppState.remainingTime <= 0) {
                 this.stopRestTimer();
-                this.playTimerAlert();
                 this.showNotification('Rest Complete', 'Time to start your next set!');
             }
         }, 1000);
+
+        // Add scroll listener for compact mode
+        this.enableCompactTimerOnScroll();
+    },
+
+    // Enable compact timer mode when scrolling
+    enableCompactTimerOnScroll() {
+        const timerElement = document.getElementById('rest-timer');
+        const workoutView = document.getElementById('workout-view');
+
+        // Remove existing listener if any
+        if (AppState.scrollListener) {
+            workoutView.removeEventListener('scroll', AppState.scrollListener);
+        }
+
+        AppState.scrollListener = () => {
+            if (workoutView.scrollTop > 100) {
+                timerElement.classList.add('compact');
+            } else {
+                timerElement.classList.remove('compact');
+            }
+        };
+
+        workoutView.addEventListener('scroll', AppState.scrollListener);
     },
 
     // Update timer display
@@ -1024,12 +1093,6 @@ const UI = {
         document.getElementById('rest-timer').classList.add('hidden');
     },
 
-    // Play alert sound (browser notification)
-    playTimerAlert() {
-        // Play system beep
-        const audio = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBSuBzvLZiTYIG2m98OScTgwNUKvi77JlHAU7k9n0y38qBSd6y/HajDwHElyx6OyrWBUIR6Ll8r1mIwUufM/13I0+CBlntOvnsVkWCkeh4fG5ZB4FO5La8sp+KgUng8rx2Yk0CBhqvO/knE0MDFCr4u+wYhsFOpPZ9Mp/KgUngsvw2Ik1CBdpvO7kmkwNDVCt5O+vYBkFN5Db88p9KQUlgc7w2Ik1CBhpvO3jmUsODk6s5/CsXhgFNpHa88p9KQUlgc7w2Ik1CBhpvO3jmUsODk6s5/CsXhgFNpHa88p9KQUlgc7w2Ik1CBhpvO3jmUsODk6s5/CsXhgFNpHa88p9KQUlgc7w2Ik1CBhpvO3jmUsODk6s5/CsXhgFNpHa88p9KQUlgc7w2Ik1CBhpvO3jmUsODk6s5/CsXhgFNpHa88p9KQUlgc7w2Ik1CBhpvO3jmUsODk6s5/CsXhgFNpHa88p9KQUlgc7w2Ik1CBhpvO3jmUsODk6s5/CsXhgFNpHa88p9KQUlgc7w2Ik1CBhpvO3jmUsODk6s5/CsXhgFNpHa88p9KQUlgc7w2Ik1CBhpvO3jmUsODk6s5/CsXhgFNpHa88p9KQUlgc7w2Ik1CBhpvO3jmUsODk6s5/CsXhgFNpHa88p9KQUlgc7w2Ik1CBhpvO3jmUsODk6s5/CsXhgFNpHa88p9KQUlgc7w2Ik1CBhpvO3jmUsO');
-        audio.play().catch(e => console.log('Could not play sound'));
-    },
 
     // Update auth status in UI
     updateAuthStatus(isAuthenticated) {
@@ -1662,6 +1725,73 @@ const WorkoutController = {
         // Start rest timer if applicable
         if (exercise.rest > 0) {
             UI.startRestTimer(exercise.rest);
+        }
+    },
+
+    // Start duration timer (counts UP)
+    startDurationTimer(exerciseIndex) {
+        const card = document.querySelector(`[data-exercise-index="${exerciseIndex}"]`);
+        const startBtn = card.querySelector('.start-duration-timer-btn');
+        const timerDisplay = card.querySelector('.duration-timer-display');
+        const timerTime = timerDisplay.querySelector('.duration-timer-time');
+        const durationInput = card.querySelector('.duration-input');
+        const unit = durationInput.dataset.unit;
+
+        // Initialize timer state
+        if (!AppState.durationTimers) {
+            AppState.durationTimers = {};
+        }
+
+        // Hide start button, show timer display
+        startBtn.classList.add('hidden');
+        timerDisplay.classList.remove('hidden');
+
+        // Start counting from 0
+        const startTime = Date.now();
+        AppState.durationTimers[exerciseIndex] = {
+            startTime: startTime,
+            interval: setInterval(() => {
+                const elapsed = Math.floor((Date.now() - startTime) / 1000); // seconds
+                const minutes = Math.floor(elapsed / 60);
+                const seconds = elapsed % 60;
+                timerTime.textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+            }, 1000)
+        };
+    },
+
+    // Stop duration timer and save value
+    stopDurationTimer(exerciseIndex) {
+        const card = document.querySelector(`[data-exercise-index="${exerciseIndex}"]`);
+        const startBtn = card.querySelector('.start-duration-timer-btn');
+        const timerDisplay = card.querySelector('.duration-timer-display');
+        const durationInput = card.querySelector('.duration-input');
+        const unit = durationInput.dataset.unit;
+
+        if (AppState.durationTimers && AppState.durationTimers[exerciseIndex]) {
+            const timer = AppState.durationTimers[exerciseIndex];
+            clearInterval(timer.interval);
+
+            // Calculate final time
+            const elapsed = Math.floor((Date.now() - timer.startTime) / 1000); // seconds
+
+            // Convert to appropriate unit
+            let finalValue;
+            if (unit === 'seconds') {
+                finalValue = elapsed;
+            } else {
+                // Convert to minutes
+                finalValue = (elapsed / 60).toFixed(1);
+            }
+
+            // Set input value
+            durationInput.value = finalValue;
+
+            // Clean up
+            delete AppState.durationTimers[exerciseIndex];
+
+            // Show start button, hide timer display
+            startBtn.classList.remove('hidden');
+            timerDisplay.classList.add('hidden');
         }
     },
 

@@ -544,6 +544,13 @@ body {
     font-weight: 500;
 }
 
+.duration-input-row {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: var(--spacing-sm);
+    align-items: center;
+}
+
 .duration-input {
     padding: var(--spacing-sm) var(--spacing-md);
     border: 1px solid var(--border);
@@ -564,6 +571,34 @@ body {
 .duration-input:disabled {
     opacity: 0.6;
     cursor: not-allowed;
+}
+
+.start-duration-timer-btn {
+    white-space: nowrap;
+    font-size: var(--font-size-sm);
+    padding: var(--spacing-xs) var(--spacing-sm);
+}
+
+.duration-timer-display {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--spacing-sm);
+    padding: var(--spacing-sm);
+    background-color: var(--accent-primary);
+    color: white;
+    border-radius: var(--radius-sm);
+    font-weight: 600;
+}
+
+.duration-timer-time {
+    font-size: 24px;
+    font-variant-numeric: tabular-nums;
+}
+
+.stop-duration-timer-btn {
+    font-size: var(--font-size-sm);
+    padding: var(--spacing-xs) var(--spacing-sm);
 }
 
 .complete-duration-btn {
@@ -672,6 +707,13 @@ body {
     text-align: center;
     box-shadow: 0 4px 12px var(--shadow);
     z-index: 50;
+    transition: all 0.3s ease;
+}
+
+.rest-timer.compact {
+    padding: var(--spacing-sm) var(--spacing-md);
+    border-radius: var(--radius-md);
+    top: 10px;
 }
 
 .rest-timer.hidden {
@@ -685,6 +727,14 @@ body {
     text-transform: uppercase;
     letter-spacing: 1px;
     font-weight: 600;
+    transition: all 0.3s ease;
+}
+
+.rest-timer.compact .timer-label {
+    display: inline-block;
+    margin-bottom: 0;
+    margin-right: var(--spacing-xs);
+    font-size: 11px;
 }
 
 .timer-countdown {
@@ -693,6 +743,13 @@ body {
     color: white;
     margin: var(--spacing-sm) 0;
     font-variant-numeric: tabular-nums;
+    transition: all 0.3s ease;
+}
+
+.rest-timer.compact .timer-countdown {
+    display: inline-block;
+    font-size: 24px;
+    margin: 0;
 }
 
 .timer-progress {
@@ -701,6 +758,13 @@ body {
     border-radius: var(--radius-sm);
     overflow: hidden;
     margin-bottom: var(--spacing-md);
+    transition: all 0.3s ease;
+}
+
+.rest-timer.compact .timer-progress {
+    height: 3px;
+    margin-bottom: 0;
+    margin-top: var(--spacing-xs);
 }
 
 .timer-progress-bar {
@@ -713,6 +777,11 @@ body {
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: var(--spacing-sm);
+    transition: all 0.3s ease;
+}
+
+.rest-timer.compact .timer-controls {
+    display: none;
 }
 
 .timer-controls .btn-secondary {
