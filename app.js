@@ -36,7 +36,32 @@ const Storage = {
         WORKOUTS: 'workout_tracker_workouts',
         CONFIG: 'workout_tracker_config',
         THEME: 'workout_tracker_theme',
-        GOOGLE_TOKEN: 'workout_tracker_google_token'
+        GOOGLE_TOKEN: 'workout_tracker_google_token',
+        IN_PROGRESS_WORKOUT: 'workout_tracker_in_progress'
+    },
+
+    // Save in-progress workout (auto-save during workout)
+    saveInProgressWorkout(workoutData) {
+        const inProgressWorkout = {
+            workoutType: AppState.currentWorkout,
+            isOptional: AppState.isOptionalWorkout,
+            startTime: AppState.workoutStartTime,
+            exercises: AppState.workoutData,
+            substitutions: AppState.substitutions,
+            lastSaved: Date.now()
+        };
+        localStorage.setItem(this.KEYS.IN_PROGRESS_WORKOUT, JSON.stringify(inProgressWorkout));
+    },
+
+    // Get in-progress workout
+    getInProgressWorkout() {
+        const data = localStorage.getItem(this.KEYS.IN_PROGRESS_WORKOUT);
+        return data ? JSON.parse(data) : null;
+    },
+
+    // Clear in-progress workout
+    clearInProgressWorkout() {
+        localStorage.removeItem(this.KEYS.IN_PROGRESS_WORKOUT);
     },
 
     // Save workout log
@@ -44,6 +69,8 @@ const Storage = {
         const workouts = this.getAllWorkouts();
         workouts.push(workout);
         localStorage.setItem(this.KEYS.WORKOUTS, JSON.stringify(workouts));
+        // Clear in-progress workout since it's now completed
+        this.clearInProgressWorkout();
     },
 
     // Get all workout logs
@@ -253,12 +280,45 @@ const SheetsAPI = {
 
     // Handle expired token
     handleExpiredToken() {
-        console.log('Token expired, clearing authentication');
-        gapi.client.setToken('');
-        Storage.clearGoogleToken();
-        AppState.isAuthenticated = false;
-        UI.updateAuthStatus(false);
-        UI.setSyncStatus('offline');
+        console.log('Token expired, attempting to refresh');
+
+        // Try to get a new token silently
+        if (AppState.tokenClient) {
+            AppState.tokenClient.callback = async (resp) => {
+                if (resp.error !== undefined) {
+                    console.error('Token refresh failed:', resp.error);
+                    // Only clear auth if refresh fails
+                    gapi.client.setToken('');
+                    Storage.clearGoogleToken();
+                    AppState.isAuthenticated = false;
+                    UI.updateAuthStatus(false);
+                    UI.setSyncStatus('offline');
+                    alert('Google Sheets connection lost. Your data is saved locally. Please reconnect when convenient.');
+                    return;
+                }
+
+                // Save the new token
+                const token = gapi.client.getToken();
+                if (token) {
+                    Storage.saveGoogleToken(token);
+                    AppState.isAuthenticated = true;
+                    UI.updateAuthStatus(true);
+                    UI.setSyncStatus('synced');
+                    console.log('Token refreshed successfully');
+                }
+            };
+
+            // Request new token without prompting user
+            AppState.tokenClient.requestAccessToken({ prompt: '' });
+        } else {
+            // Fallback: clear auth
+            gapi.client.setToken('');
+            Storage.clearGoogleToken();
+            AppState.isAuthenticated = false;
+            UI.updateAuthStatus(false);
+            UI.setSyncStatus('offline');
+            alert('Google Sheets connection lost. Your data is saved locally. Please reconnect when convenient.');
+        }
     },
 
     // Read data from a sheet range
@@ -1410,6 +1470,9 @@ const WorkoutController = {
         exerciseData.sets.push(setData);
         exerciseData.sets.sort((a, b) => a.setNumber - b.setNumber);
 
+        // Save in-progress workout to localStorage immediately
+        Storage.saveInProgressWorkout();
+
         // Mark row as completed
         setRow.classList.add('completed');
 
@@ -1417,7 +1480,7 @@ const WorkoutController = {
         repsInput.disabled = true;
         weightInput.disabled = true;
 
-        // Log to Google Sheets if authenticated
+        // Log to Google Sheets if authenticated (non-blocking)
         if (AppState.isAuthenticated) {
             SheetsAPI.logSet(
                 AppState.currentWorkout,
@@ -1429,6 +1492,7 @@ const WorkoutController = {
                 exercise.rest
             ).catch(error => {
                 console.error('Failed to log set to Google Sheets:', error);
+                // Data is already saved to localStorage, so this is not critical
             });
         }
 
@@ -1473,6 +1537,9 @@ const WorkoutController = {
         const exerciseData = AppState.workoutData[exerciseIndex];
         exerciseData.sets = [setData];
 
+        // Save in-progress workout to localStorage immediately
+        Storage.saveInProgressWorkout();
+
         // Mark as completed
         card.classList.add('completed');
         durationInput.disabled = true;
@@ -1480,7 +1547,7 @@ const WorkoutController = {
         completeBtn.disabled = true;
         completeBtn.textContent = '✓ Completed';
 
-        // Log to Google Sheets if authenticated
+        // Log to Google Sheets if authenticated (non-blocking)
         if (AppState.isAuthenticated) {
             SheetsAPI.logSet(
                 AppState.currentWorkout,
@@ -1492,6 +1559,7 @@ const WorkoutController = {
                 exercise.rest
             ).catch(error => {
                 console.error('Failed to log duration to Google Sheets:', error);
+                // Data is already saved to localStorage, so this is not critical
             });
         }
 
@@ -1529,10 +1597,13 @@ const WorkoutController = {
             const exerciseData = AppState.workoutData[exerciseIndex];
             exerciseData.sets = [setData];
 
+            // Save in-progress workout to localStorage immediately
+            Storage.saveInProgressWorkout();
+
             // Mark card as completed
             card.classList.add('completed');
 
-            // Log to Google Sheets if authenticated
+            // Log to Google Sheets if authenticated (non-blocking)
             if (AppState.isAuthenticated) {
                 SheetsAPI.logSet(
                     AppState.currentWorkout,
@@ -1544,6 +1615,7 @@ const WorkoutController = {
                     exercise.rest
                 ).catch(error => {
                     console.error('Failed to log completion to Google Sheets:', error);
+                    // Data is already saved to localStorage, so this is not critical
                 });
             }
 
@@ -1558,6 +1630,10 @@ const WorkoutController = {
             // Unchecked - remove from data
             const exerciseData = AppState.workoutData[exerciseIndex];
             exerciseData.sets = [];
+
+            // Save in-progress workout to localStorage immediately
+            Storage.saveInProgressWorkout();
+
             card.classList.remove('completed');
 
             // Update UI
@@ -1625,6 +1701,8 @@ const WorkoutController = {
     cancelWorkout() {
         AppState.currentWorkout = null;
         AppState.workoutData = [];
+        AppState.substitutions = {};
+        Storage.clearInProgressWorkout(); // Clear saved in-progress workout
         UI.stopRestTimer();
         UI.releaseWakeLock(); // Release wake lock when workout cancelled
         UI.switchView('home');
@@ -1636,6 +1714,72 @@ const WorkoutController = {
 // Initialize app when DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
     UI.init();
+
+    // Check for in-progress workout and offer to restore
+    const inProgress = Storage.getInProgressWorkout();
+    if (inProgress) {
+        const lastSavedTime = new Date(inProgress.lastSaved);
+        const timeSince = Math.round((Date.now() - inProgress.lastSaved) / 1000 / 60); // minutes
+
+        const workoutDef = inProgress.isOptional
+            ? getOptionalWorkout(inProgress.workoutType)
+            : getWorkout(inProgress.workoutType);
+
+        const message = `You have an in-progress workout:\n\n${workoutDef.name}\nLast saved: ${timeSince} minutes ago\n\nWould you like to continue this workout?`;
+
+        if (confirm(message)) {
+            // Restore workout state
+            AppState.currentWorkout = inProgress.workoutType;
+            AppState.isOptionalWorkout = inProgress.isOptional;
+            AppState.workoutStartTime = inProgress.startTime;
+            AppState.workoutData = inProgress.exercises;
+            AppState.substitutions = inProgress.substitutions || {};
+
+            // Switch to workout view and render
+            UI.requestWakeLock();
+            UI.switchView('workout');
+            UI.renderFullWorkout();
+
+            // Mark previously completed sets as completed
+            inProgress.exercises.forEach((exercise, exerciseIndex) => {
+                exercise.sets.forEach(set => {
+                    const card = document.querySelector(`[data-exercise-index="${exerciseIndex}"]`);
+                    if (!card) return;
+
+                    // Find and mark the set row as completed
+                    const setRow = card.querySelector(`.set-row[data-set="${set.setNumber}"]`);
+                    if (setRow) {
+                        const checkbox = setRow.querySelector('.set-checkbox');
+                        const repsInput = setRow.querySelector('.reps-input');
+                        const weightInput = setRow.querySelector('.weight-input');
+
+                        if (checkbox) checkbox.checked = true;
+                        if (repsInput) {
+                            repsInput.value = set.reps;
+                            repsInput.disabled = true;
+                        }
+                        if (weightInput) {
+                            weightInput.value = set.weight;
+                            weightInput.disabled = true;
+                        }
+                        setRow.classList.add('completed');
+                    }
+                });
+
+                // Mark exercise card as completed if all sets done
+                const card = document.querySelector(`[data-exercise-index="${exerciseIndex}"]`);
+                const exerciseDef = workoutDef.exercises[exerciseIndex];
+                if (card && exercise.sets.length === exerciseDef.sets) {
+                    card.classList.add('completed');
+                }
+            });
+
+            UI.updateWorkoutProgress();
+        } else {
+            // User declined to restore - clear the saved workout
+            Storage.clearInProgressWorkout();
+        }
+    }
 });
 
 // Handle page visibility changes (browser tab switching)
