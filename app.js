@@ -1009,7 +1009,6 @@ const UI = {
 
             if (AppState.remainingTime <= 0) {
                 this.stopRestTimer();
-                this.playTimerAlert();
                 this.showNotification('Rest Complete', 'Time to start your next set!');
             }
         }, 1000);
@@ -1073,12 +1072,6 @@ const UI = {
         document.getElementById('rest-timer').classList.add('hidden');
     },
 
-    // Play alert sound (browser notification)
-    playTimerAlert() {
-        // Play system beep
-        const audio = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBSuBzvLZiTYIG2m98OScTgwNUKvi77JlHAU7k9n0y38qBSd6y/HajDwHElyx6OyrWBUIR6Ll8r1mIwUufM/13I0+CBlntOvnsVkWCkeh4fG5ZB4FO5La8sp+KgUng8rx2Yk0CBhqvO/knE0MDFCr4u+wYhsFOpPZ9Mp/KgUngsvw2Ik1CBdpvO7kmkwNDVCt5O+vYBkFN5Db88p9KQUlgc7w2Ik1CBhpvO3jmUsODk6s5/CsXhgFNpHa88p9KQUlgc7w2Ik1CBhpvO3jmUsODk6s5/CsXhgFNpHa88p9KQUlgc7w2Ik1CBhpvO3jmUsODk6s5/CsXhgFNpHa88p9KQUlgc7w2Ik1CBhpvO3jmUsODk6s5/CsXhgFNpHa88p9KQUlgc7w2Ik1CBhpvO3jmUsODk6s5/CsXhgFNpHa88p9KQUlgc7w2Ik1CBhpvO3jmUsODk6s5/CsXhgFNpHa88p9KQUlgc7w2Ik1CBhpvO3jmUsODk6s5/CsXhgFNpHa88p9KQUlgc7w2Ik1CBhpvO3jmUsODk6s5/CsXhgFNpHa88p9KQUlgc7w2Ik1CBhpvO3jmUsODk6s5/CsXhgFNpHa88p9KQUlgc7w2Ik1CBhpvO3jmUsODk6s5/CsXhgFNpHa88p9KQUlgc7w2Ik1CBhpvO3jmUsODk6s5/CsXhgFNpHa88p9KQUlgc7w2Ik1CBhpvO3jmUsO');
-        audio.play().catch(e => console.log('Could not play sound'));
-    },
 
     // Update auth status in UI
     updateAuthStatus(isAuthenticated) {
