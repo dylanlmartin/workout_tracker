@@ -759,24 +759,45 @@ const UI = {
             card.classList.add('substituted');
         }
 
-        // Get previous data for this exercise (use original name for history)
-        const previousExercise = previousWorkout?.exercises.find(e => e.name === exercise.name);
+        // Get the actual exercise definition (substituted or original)
+        let actualExercise = exercise;
+        if (isSubstituted) {
+            // Look up the substitution exercise details
+            const subs = getSubstitutions(exercise.name);
+            const subExercise = subs.exercises.find(e => e.name === substitutedName);
+            if (subExercise) {
+                // Use substitution exercise details for notes, sets, reps, etc.
+                actualExercise = {
+                    ...exercise,
+                    name: substitutedName,
+                    notes: subExercise.notes || exercise.notes,
+                    sets: subExercise.sets || exercise.sets,
+                    reps: subExercise.reps || exercise.reps,
+                    rest: subExercise.rest || exercise.rest
+                };
+            }
+        }
+
+        // Get previous data for this exercise (use substituted name if applicable)
+        const lookupName = isSubstituted ? substitutedName : exercise.name;
+        const previousExercise = previousWorkout?.exercises.find(e => e.name === lookupName);
 
         let html = '<div class="exercise-header">';
         html += `<h3>${displayName}</h3>`;
-        if (exercise.category) {
-            html += `<span class="exercise-badge ${exercise.category}">${exercise.category}</span>`;
+        if (actualExercise.category || exercise.category) {
+            const category = actualExercise.category || exercise.category;
+            html += `<span class="exercise-badge ${category}">${category}</span>`;
         }
         html += '</div>';
 
-        html += `<div class="exercise-meta">${exercise.sets} sets × ${exercise.reps} reps • ${exercise.rest}s rest</div>`;
+        html += `<div class="exercise-meta">${actualExercise.sets} sets × ${actualExercise.reps} reps • ${actualExercise.rest}s rest</div>`;
 
         if (exercise.superset) {
             html += `<span class="superset-indicator">⚡ Superset with ${exercise.superset}</span>`;
         }
 
-        if (exercise.notes) {
-            html += `<div class="exercise-notes">${exercise.notes}</div>`;
+        if (actualExercise.notes) {
+            html += `<div class="exercise-notes">${actualExercise.notes}</div>`;
         }
 
         // Substitution button (only show if substitutions are available)
@@ -798,13 +819,13 @@ const UI = {
         }
 
         // Sets grid - different UI based on exercise type
-        const exerciseType = exercise.exerciseType || 'reps';
+        const exerciseType = actualExercise.exerciseType || 'reps';
 
         html += '<div class="sets-grid">';
 
         if (exerciseType === 'duration') {
             // Duration-based: single input for time + timer + complete button
-            const durationUnit = exercise.durationUnit || 'minutes';
+            const durationUnit = actualExercise.durationUnit || 'minutes';
             const unitLabel = durationUnit === 'seconds' ? 'seconds' : 'minutes';
             const step = durationUnit === 'seconds' ? '1' : '0.5';
 
@@ -817,7 +838,7 @@ const UI = {
             html += `<input type="number"
                            id="duration-input-${exerciseIndex}"
                            class="duration-input"
-                           placeholder="${exercise.targetDuration || '30'}"
+                           placeholder="${actualExercise.targetDuration || '30'}"
                            value="${prevDuration}"
                            inputmode="decimal"
                            min="0"
@@ -825,7 +846,7 @@ const UI = {
                            data-unit="${durationUnit}">`;
             html += `<button class="btn-secondary start-duration-timer-btn"
                            data-exercise-index="${exerciseIndex}"
-                           data-target="${exercise.targetDuration || '30'}"
+                           data-target="${actualExercise.targetDuration || '30'}"
                            data-unit="${durationUnit}">
                         ⏱️ Start Timer
                      </button>`;
@@ -850,12 +871,12 @@ const UI = {
                                data-exercise-index="${exerciseIndex}">
                         <span>Mark as completed</span>
                      </label>`;
-            html += `<div class="completion-description">${exercise.reps}</div>`;
+            html += `<div class="completion-description">${actualExercise.reps}</div>`;
             html += `</div>`;
 
         } else {
             // Traditional reps/weight tracking
-            for (let setNum = 1; setNum <= exercise.sets; setNum++) {
+            for (let setNum = 1; setNum <= actualExercise.sets; setNum++) {
                 const prevSet = previousExercise?.sets[setNum - 1];
                 const prevReps = prevSet?.reps || '';
                 const prevWeight = prevSet?.weight || '';
