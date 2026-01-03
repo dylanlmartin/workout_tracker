@@ -803,7 +803,7 @@ const UI = {
         html += '<div class="sets-grid">';
 
         if (exerciseType === 'duration') {
-            // Duration-based: single input for time + complete button
+            // Duration-based: single input for time + timer + complete button
             const durationUnit = exercise.durationUnit || 'minutes';
             const unitLabel = durationUnit === 'seconds' ? 'seconds' : 'minutes';
             const step = durationUnit === 'seconds' ? '1' : '0.5';
@@ -813,6 +813,7 @@ const UI = {
 
             html += `<div class="duration-tracker">`;
             html += `<label for="duration-input-${exerciseIndex}">Duration (${unitLabel}):</label>`;
+            html += `<div class="duration-input-row">`;
             html += `<input type="number"
                            id="duration-input-${exerciseIndex}"
                            class="duration-input"
@@ -822,6 +823,19 @@ const UI = {
                            min="0"
                            step="${step}"
                            data-unit="${durationUnit}">`;
+            html += `<button class="btn-secondary start-duration-timer-btn"
+                           data-exercise-index="${exerciseIndex}"
+                           data-target="${exercise.targetDuration || '30'}"
+                           data-unit="${durationUnit}">
+                        ⏱️ Start Timer
+                     </button>`;
+            html += `</div>`;
+            html += `<div class="duration-timer-display hidden" id="duration-timer-${exerciseIndex}">
+                        <span class="duration-timer-time">0:00</span>
+                        <button class="btn-danger stop-duration-timer-btn" data-exercise-index="${exerciseIndex}">
+                            Stop & Save
+                        </button>
+                     </div>`;
             html += `<button class="btn-primary complete-duration-btn" data-exercise-index="${exerciseIndex}">
                         Complete
                      </button>`;
@@ -883,10 +897,20 @@ const UI = {
         // (exerciseType already declared above when building UI)
 
         if (exerciseType === 'duration') {
-            // Duration exercise: complete button
+            // Duration exercise: complete button and timer buttons
             const completeBtn = card.querySelector('.complete-duration-btn');
             completeBtn.addEventListener('click', () => {
                 WorkoutController.handleDurationComplete(exerciseIndex);
+            });
+
+            const startTimerBtn = card.querySelector('.start-duration-timer-btn');
+            startTimerBtn.addEventListener('click', () => {
+                WorkoutController.startDurationTimer(exerciseIndex);
+            });
+
+            const stopTimerBtn = card.querySelector('.stop-duration-timer-btn');
+            stopTimerBtn.addEventListener('click', () => {
+                WorkoutController.stopDurationTimer(exerciseIndex);
             });
 
         } else if (exerciseType === 'completion') {
@@ -969,6 +993,7 @@ const UI = {
 
         const timerElement = document.getElementById('rest-timer');
         timerElement.classList.remove('hidden');
+        timerElement.classList.remove('compact'); // Start in full mode
 
         // Reset pause button text
         document.getElementById('pause-timer-btn').textContent = 'Pause';
@@ -988,6 +1013,30 @@ const UI = {
                 this.showNotification('Rest Complete', 'Time to start your next set!');
             }
         }, 1000);
+
+        // Add scroll listener for compact mode
+        this.enableCompactTimerOnScroll();
+    },
+
+    // Enable compact timer mode when scrolling
+    enableCompactTimerOnScroll() {
+        const timerElement = document.getElementById('rest-timer');
+        const workoutView = document.getElementById('workout-view');
+
+        // Remove existing listener if any
+        if (AppState.scrollListener) {
+            workoutView.removeEventListener('scroll', AppState.scrollListener);
+        }
+
+        AppState.scrollListener = () => {
+            if (workoutView.scrollTop > 100) {
+                timerElement.classList.add('compact');
+            } else {
+                timerElement.classList.remove('compact');
+            }
+        };
+
+        workoutView.addEventListener('scroll', AppState.scrollListener);
     },
 
     // Update timer display
@@ -1662,6 +1711,73 @@ const WorkoutController = {
         // Start rest timer if applicable
         if (exercise.rest > 0) {
             UI.startRestTimer(exercise.rest);
+        }
+    },
+
+    // Start duration timer (counts UP)
+    startDurationTimer(exerciseIndex) {
+        const card = document.querySelector(`[data-exercise-index="${exerciseIndex}"]`);
+        const startBtn = card.querySelector('.start-duration-timer-btn');
+        const timerDisplay = card.querySelector('.duration-timer-display');
+        const timerTime = timerDisplay.querySelector('.duration-timer-time');
+        const durationInput = card.querySelector('.duration-input');
+        const unit = durationInput.dataset.unit;
+
+        // Initialize timer state
+        if (!AppState.durationTimers) {
+            AppState.durationTimers = {};
+        }
+
+        // Hide start button, show timer display
+        startBtn.classList.add('hidden');
+        timerDisplay.classList.remove('hidden');
+
+        // Start counting from 0
+        const startTime = Date.now();
+        AppState.durationTimers[exerciseIndex] = {
+            startTime: startTime,
+            interval: setInterval(() => {
+                const elapsed = Math.floor((Date.now() - startTime) / 1000); // seconds
+                const minutes = Math.floor(elapsed / 60);
+                const seconds = elapsed % 60;
+                timerTime.textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+            }, 1000)
+        };
+    },
+
+    // Stop duration timer and save value
+    stopDurationTimer(exerciseIndex) {
+        const card = document.querySelector(`[data-exercise-index="${exerciseIndex}"]`);
+        const startBtn = card.querySelector('.start-duration-timer-btn');
+        const timerDisplay = card.querySelector('.duration-timer-display');
+        const durationInput = card.querySelector('.duration-input');
+        const unit = durationInput.dataset.unit;
+
+        if (AppState.durationTimers && AppState.durationTimers[exerciseIndex]) {
+            const timer = AppState.durationTimers[exerciseIndex];
+            clearInterval(timer.interval);
+
+            // Calculate final time
+            const elapsed = Math.floor((Date.now() - timer.startTime) / 1000); // seconds
+
+            // Convert to appropriate unit
+            let finalValue;
+            if (unit === 'seconds') {
+                finalValue = elapsed;
+            } else {
+                // Convert to minutes
+                finalValue = (elapsed / 60).toFixed(1);
+            }
+
+            // Set input value
+            durationInput.value = finalValue;
+
+            // Clean up
+            delete AppState.durationTimers[exerciseIndex];
+
+            // Show start button, hide timer display
+            startBtn.classList.remove('hidden');
+            timerDisplay.classList.add('hidden');
         }
     },
 
