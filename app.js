@@ -386,7 +386,7 @@ const SheetsAPI = {
     async fetchWorkoutHistory() {
         try {
             const response = await gapi.client.sheets.spreadsheets.values.get({
-                spreadsheetId: this.spreadsheetId,
+                spreadsheetId: AppState.sheetId,
                 range: 'Workout History!A:G',
             });
 
