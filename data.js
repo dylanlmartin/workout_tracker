@@ -110,7 +110,10 @@ const WORKOUTS = {
             },
             {
                 name: 'Side Plank',
+                exerciseType: 'duration',
                 sets: 3,
+                targetDuration: 30, // seconds
+                durationUnit: 'seconds',
                 reps: '30s/side',
                 rest: 60,
                 category: 'core',
@@ -248,7 +251,10 @@ const WORKOUTS = {
             },
             {
                 name: 'Plank',
+                exerciseType: 'duration',
                 sets: 3,
+                targetDuration: 45, // seconds
+                durationUnit: 'seconds',
                 reps: '45s',
                 rest: 60,
                 category: 'core',
