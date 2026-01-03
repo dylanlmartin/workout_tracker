@@ -412,6 +412,74 @@ const SheetsAPI = {
         }
     },
 
+    // Fetch previous workout details from Workout Log for showing previous performance
+    async fetchPreviousWorkoutDetails(workoutType) {
+        try {
+            const response = await gapi.client.sheets.spreadsheets.values.get({
+                spreadsheetId: AppState.sheetId,
+                range: 'Workout Log!A:I',
+            });
+
+            const rows = response.result.values;
+            if (!rows || rows.length <= 1) {
+                return null;
+            }
+
+            // Skip header row and filter for this workout type
+            const workoutRows = rows.slice(1).filter(row => row[1] === workoutType);
+            if (workoutRows.length === 0) {
+                return null;
+            }
+
+            // Get the most recent date for this workout
+            const dates = [...new Set(workoutRows.map(row => row[0]))];
+            dates.sort((a, b) => new Date(b) - new Date(a));
+            const mostRecentDate = dates[0];
+
+            // Get all exercises from that date
+            const recentWorkoutRows = workoutRows.filter(row => row[0] === mostRecentDate);
+
+            // Group by exercise name
+            const exercisesMap = {};
+            recentWorkoutRows.forEach(row => {
+                const exerciseName = row[2];
+                const setNumber = parseInt(row[4]) || 1;
+                const reps = row[5];
+                const weight = parseFloat(row[6]) || 0;
+
+                if (!exercisesMap[exerciseName]) {
+                    exercisesMap[exerciseName] = {
+                        name: exerciseName,
+                        sets: []
+                    };
+                }
+
+                exercisesMap[exerciseName].sets.push({
+                    setNumber: setNumber,
+                    reps: reps,
+                    weight: weight
+                });
+            });
+
+            // Sort sets within each exercise
+            Object.values(exercisesMap).forEach(exercise => {
+                exercise.sets.sort((a, b) => a.setNumber - b.setNumber);
+            });
+
+            return {
+                date: mostRecentDate,
+                workoutType: workoutType,
+                exercises: Object.values(exercisesMap)
+            };
+        } catch (error) {
+            console.error('Error fetching previous workout details:', error);
+            if (error.status === 401) {
+                this.handleExpiredToken();
+            }
+            return null;
+        }
+    },
+
     // Sync local data to Google Sheets
     async syncLocalDataToSheets() {
         const workouts = Storage.getAllWorkouts();
@@ -572,12 +640,24 @@ const UI = {
     },
 
     // Render full workout view with all exercises
-    renderFullWorkout() {
+    async renderFullWorkout() {
         // Get workout from appropriate source
         const workout = AppState.isOptionalWorkout
             ? getOptionalWorkout(AppState.currentWorkout)
             : getWorkout(AppState.currentWorkout);
-        const previousWorkout = Storage.getPreviousWorkout(AppState.currentWorkout);
+
+        // Get previous workout data from Sheets if authenticated, otherwise from localStorage
+        let previousWorkout = null;
+        if (AppState.isAuthenticated) {
+            try {
+                previousWorkout = await SheetsAPI.fetchPreviousWorkoutDetails(AppState.currentWorkout);
+            } catch (error) {
+                console.error('Failed to fetch previous workout from Sheets, falling back to localStorage:', error);
+                previousWorkout = Storage.getPreviousWorkout(AppState.currentWorkout);
+            }
+        } else {
+            previousWorkout = Storage.getPreviousWorkout(AppState.currentWorkout);
+        }
 
         document.getElementById('workout-title').textContent = workout.name;
         document.getElementById('workout-progress').textContent =
@@ -593,11 +673,24 @@ const UI = {
     },
 
     // Update a single exercise card (e.g., when substitution is applied)
-    updateSingleExerciseCard(exerciseIndex) {
+    async updateSingleExerciseCard(exerciseIndex) {
         const workout = AppState.isOptionalWorkout
             ? getOptionalWorkout(AppState.currentWorkout)
             : getWorkout(AppState.currentWorkout);
-        const previousWorkout = Storage.getPreviousWorkout(AppState.currentWorkout);
+
+        // Get previous workout data from Sheets if authenticated, otherwise from localStorage
+        let previousWorkout = null;
+        if (AppState.isAuthenticated) {
+            try {
+                previousWorkout = await SheetsAPI.fetchPreviousWorkoutDetails(AppState.currentWorkout);
+            } catch (error) {
+                console.error('Failed to fetch previous workout from Sheets, falling back to localStorage:', error);
+                previousWorkout = Storage.getPreviousWorkout(AppState.currentWorkout);
+            }
+        } else {
+            previousWorkout = Storage.getPreviousWorkout(AppState.currentWorkout);
+        }
+
         const exercise = workout.exercises[exerciseIndex];
 
         // Find the old card and capture its input values
@@ -1340,7 +1433,7 @@ const SubstitutionController = {
     },
 
     // Apply selected substitution
-    applySubstitution() {
+    async applySubstitution() {
         const selectedRadio = document.querySelector('input[name="substitution"]:checked');
         if (!selectedRadio) {
             alert('Please select a substitution exercise.');
@@ -1354,21 +1447,21 @@ const SubstitutionController = {
         AppState.substitutions[exerciseIndex] = substitutionName;
 
         // Update only the affected exercise card
-        UI.updateSingleExerciseCard(exerciseIndex);
+        await UI.updateSingleExerciseCard(exerciseIndex);
 
         // Close modal
         this.closeSubstitutionModal();
     },
 
     // Reset to original exercise
-    resetToOriginal() {
+    async resetToOriginal() {
         const exerciseIndex = AppState.currentSubstitutionExercise;
 
         // Remove substitution
         delete AppState.substitutions[exerciseIndex];
 
         // Update only the affected exercise card
-        UI.updateSingleExerciseCard(exerciseIndex);
+        await UI.updateSingleExerciseCard(exerciseIndex);
 
         // Close modal
         this.closeSubstitutionModal();
@@ -1379,7 +1472,7 @@ const SubstitutionController = {
 
 const WorkoutController = {
     // Start a new workout
-    startWorkout(workoutId, isOptional = false) {
+    async startWorkout(workoutId, isOptional = false) {
         AppState.currentWorkout = workoutId;
         AppState.workoutData = [];
         AppState.workoutStartTime = Date.now();
@@ -1417,7 +1510,7 @@ const WorkoutController = {
         }
 
         UI.switchView('workout');
-        UI.renderFullWorkout();
+        await UI.renderFullWorkout();
     },
 
     // Handle set completion (checkbox clicked)
@@ -1712,7 +1805,7 @@ const WorkoutController = {
 // ==================== INITIALIZATION ====================
 
 // Initialize app when DOM is loaded
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
     UI.init();
 
     // Check for in-progress workout and offer to restore
@@ -1738,7 +1831,7 @@ document.addEventListener('DOMContentLoaded', () => {
             // Switch to workout view and render
             UI.requestWakeLock();
             UI.switchView('workout');
-            UI.renderFullWorkout();
+            await UI.renderFullWorkout();
 
             // Mark previously completed sets as completed
             inProgress.exercises.forEach((exercise, exerciseIndex) => {
