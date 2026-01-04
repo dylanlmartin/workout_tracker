@@ -762,11 +762,12 @@ const UI = {
         // Get the actual exercise definition (substituted or original)
         let actualExercise = exercise;
         if (isSubstituted) {
-            // Substitutions are just name changes - keep the original exercise properties
-            // but update the display name
+            // Look up the substitution details to get notes
+            const subs = getSubstitutions(exercise.name);
             actualExercise = {
                 ...exercise,
-                name: substitutedName
+                name: substitutedName,
+                notes: subs?.notes || exercise.notes
             };
         }
 
