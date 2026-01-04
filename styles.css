@@ -698,13 +698,16 @@ body {
 
 /* ===== Rest Timer ===== */
 .rest-timer {
-    position: sticky;
+    position: fixed;
     top: 70px;
+    left: 50%;
+    transform: translateX(-50%);
+    max-width: 500px;
+    width: calc(100% - 2 * var(--spacing-lg));
     background-color: var(--accent-primary);
     color: white;
     border-radius: var(--radius-lg);
     padding: var(--spacing-lg);
-    margin-bottom: var(--spacing-lg);
     text-align: center;
     box-shadow: 0 4px 12px var(--shadow);
     z-index: 50;
