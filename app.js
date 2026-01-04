@@ -1041,22 +1041,22 @@ const UI = {
     // Enable compact timer mode when scrolling
     enableCompactTimerOnScroll() {
         const timerElement = document.getElementById('rest-timer');
-        const workoutView = document.getElementById('workout-view');
+        const mainContent = document.getElementById('main-content');
 
         // Remove existing listener if any
         if (AppState.scrollListener) {
-            workoutView.removeEventListener('scroll', AppState.scrollListener);
+            mainContent.removeEventListener('scroll', AppState.scrollListener);
         }
 
         AppState.scrollListener = () => {
-            if (workoutView.scrollTop > 100) {
+            if (mainContent.scrollTop > 100) {
                 timerElement.classList.add('compact');
             } else {
                 timerElement.classList.remove('compact');
             }
         };
 
-        workoutView.addEventListener('scroll', AppState.scrollListener);
+        mainContent.addEventListener('scroll', AppState.scrollListener);
     },
 
     // Update timer display
@@ -1090,7 +1090,17 @@ const UI = {
             AppState.timerInterval = null;
         }
         AppState.totalRestTime = 0; // Reset for next timer
-        document.getElementById('rest-timer').classList.add('hidden');
+
+        // Remove scroll listener
+        if (AppState.scrollListener) {
+            const mainContent = document.getElementById('main-content');
+            mainContent.removeEventListener('scroll', AppState.scrollListener);
+            AppState.scrollListener = null;
+        }
+
+        const timerElement = document.getElementById('rest-timer');
+        timerElement.classList.add('hidden');
+        timerElement.classList.remove('compact');
     },
 
 
@@ -1424,13 +1434,6 @@ const UI = {
                 SubstitutionController.closeSubstitutionModal();
             }
         });
-
-        // Handle substitution selection (apply immediately when radio button is clicked)
-        document.addEventListener('change', (e) => {
-            if (e.target.name === 'substitution') {
-                SubstitutionController.applySubstitution();
-            }
-        });
     }
 };
 
@@ -1513,6 +1516,9 @@ const SubstitutionController = {
         // Save substitution
         AppState.substitutions[exerciseIndex] = substitutionName;
 
+        // Persist substitution to localStorage
+        Storage.saveInProgressWorkout();
+
         // Update only the affected exercise card
         await UI.updateSingleExerciseCard(exerciseIndex);
 
@@ -1526,6 +1532,9 @@ const SubstitutionController = {
 
         // Remove substitution
         delete AppState.substitutions[exerciseIndex];
+
+        // Persist to localStorage
+        Storage.saveInProgressWorkout();
 
         // Update only the affected exercise card
         await UI.updateSingleExerciseCard(exerciseIndex);
@@ -1969,35 +1978,79 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             // Mark previously completed sets as completed
             inProgress.exercises.forEach((exercise, exerciseIndex) => {
-                exercise.sets.forEach(set => {
-                    const card = document.querySelector(`[data-exercise-index="${exerciseIndex}"]`);
-                    if (!card) return;
-
-                    // Find and mark the set row as completed
-                    const setRow = card.querySelector(`.set-row[data-set="${set.setNumber}"]`);
-                    if (setRow) {
-                        const checkbox = setRow.querySelector('.set-checkbox');
-                        const repsInput = setRow.querySelector('.reps-input');
-                        const weightInput = setRow.querySelector('.weight-input');
-
-                        if (checkbox) checkbox.checked = true;
-                        if (repsInput) {
-                            repsInput.value = set.reps;
-                            repsInput.disabled = true;
-                        }
-                        if (weightInput) {
-                            weightInput.value = set.weight;
-                            weightInput.disabled = true;
-                        }
-                        setRow.classList.add('completed');
-                    }
-                });
-
-                // Mark exercise card as completed if all sets done
                 const card = document.querySelector(`[data-exercise-index="${exerciseIndex}"]`);
+                if (!card || !exercise.sets || exercise.sets.length === 0) return;
+
                 const exerciseDef = workoutDef.exercises[exerciseIndex];
-                if (card && exercise.sets.length === exerciseDef.sets) {
-                    card.classList.add('completed');
+
+                // Account for substitutions when determining exercise type
+                let actualExerciseDef = exerciseDef;
+                const substitutedName = inProgress.substitutions?.[exerciseIndex];
+                if (substitutedName) {
+                    const subs = getSubstitutions(exerciseDef.name);
+                    const subExercise = subs?.exercises.find(e => e.name === substitutedName);
+                    if (subExercise) {
+                        actualExerciseDef = subExercise;
+                    }
+                }
+
+                const exerciseType = actualExerciseDef.exerciseType || 'reps';
+
+                if (exerciseType === 'duration') {
+                    // Duration exercise: mark input as disabled and card as completed
+                    const durationInput = card.querySelector('.duration-input');
+                    const completeBtn = card.querySelector('.complete-duration-btn');
+
+                    if (exercise.sets[0]) {
+                        const duration = exercise.sets[0].reps;
+                        if (durationInput) {
+                            durationInput.value = duration.replace(/[^\d.]/g, ''); // Remove unit suffix
+                            durationInput.disabled = true;
+                        }
+                        if (completeBtn) {
+                            completeBtn.disabled = true;
+                            completeBtn.textContent = '✓ Completed';
+                        }
+                        card.classList.add('completed');
+                    }
+
+                } else if (exerciseType === 'completion') {
+                    // Completion exercise: check the checkbox and mark as completed
+                    const checkbox = card.querySelector('.completion-checkbox');
+
+                    if (exercise.sets[0] && checkbox) {
+                        checkbox.checked = true;
+                        checkbox.disabled = true;
+                        card.classList.add('completed');
+                    }
+
+                } else {
+                    // Traditional reps/weight: mark individual sets
+                    exercise.sets.forEach(set => {
+                        const setRow = card.querySelector(`.set-row[data-set="${set.setNumber}"]`);
+                        if (setRow) {
+                            const checkbox = setRow.querySelector('.set-checkbox');
+                            const repsInput = setRow.querySelector('.reps-input');
+                            const weightInput = setRow.querySelector('.weight-input');
+
+                            if (checkbox) checkbox.checked = true;
+                            if (repsInput) {
+                                repsInput.value = set.reps;
+                                repsInput.disabled = true;
+                            }
+                            if (weightInput) {
+                                weightInput.value = set.weight;
+                                weightInput.disabled = true;
+                            }
+                            setRow.classList.add('completed');
+                        }
+                    });
+
+                    // Mark exercise card as completed if all sets done
+                    const expectedSets = actualExerciseDef.sets || exerciseDef.sets;
+                    if (exercise.sets.length === expectedSets) {
+                        card.classList.add('completed');
+                    }
                 }
             });
 
