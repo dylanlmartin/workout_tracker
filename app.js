@@ -1041,22 +1041,22 @@ const UI = {
     // Enable compact timer mode when scrolling
     enableCompactTimerOnScroll() {
         const timerElement = document.getElementById('rest-timer');
-        const workoutView = document.getElementById('workout-view');
+        const mainContent = document.getElementById('main-content');
 
         // Remove existing listener if any
         if (AppState.scrollListener) {
-            workoutView.removeEventListener('scroll', AppState.scrollListener);
+            mainContent.removeEventListener('scroll', AppState.scrollListener);
         }
 
         AppState.scrollListener = () => {
-            if (workoutView.scrollTop > 100) {
+            if (mainContent.scrollTop > 100) {
                 timerElement.classList.add('compact');
             } else {
                 timerElement.classList.remove('compact');
             }
         };
 
-        workoutView.addEventListener('scroll', AppState.scrollListener);
+        mainContent.addEventListener('scroll', AppState.scrollListener);
     },
 
     // Update timer display
@@ -1090,7 +1090,17 @@ const UI = {
             AppState.timerInterval = null;
         }
         AppState.totalRestTime = 0; // Reset for next timer
-        document.getElementById('rest-timer').classList.add('hidden');
+
+        // Remove scroll listener
+        if (AppState.scrollListener) {
+            const mainContent = document.getElementById('main-content');
+            mainContent.removeEventListener('scroll', AppState.scrollListener);
+            AppState.scrollListener = null;
+        }
+
+        const timerElement = document.getElementById('rest-timer');
+        timerElement.classList.add('hidden');
+        timerElement.classList.remove('compact');
     },
 
 
