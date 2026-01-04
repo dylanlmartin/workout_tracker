@@ -673,7 +673,7 @@ const UI = {
     },
 
     // Update a single exercise card (e.g., when substitution is applied)
-    async updateSingleExerciseCard(exerciseIndex) {
+    async updateSingleExerciseCard(exerciseIndex, preserveInputs = true) {
         const workout = AppState.isOptionalWorkout
             ? getOptionalWorkout(AppState.currentWorkout)
             : getWorkout(AppState.currentWorkout);
@@ -702,41 +702,45 @@ const UI = {
             duration: null
         };
 
-        // Capture current input values
-        oldCard.querySelectorAll('.set-row').forEach(row => {
-            const setNum = parseInt(row.dataset.set);
-            const repsInput = row.querySelector('.reps-input');
-            const weightInput = row.querySelector('.weight-input');
-            preservedInputs.sets[setNum - 1] = {
-                reps: repsInput?.value || '',
-                weight: weightInput?.value || ''
-            };
-        });
+        // Capture current input values only if requested
+        if (preserveInputs) {
+            oldCard.querySelectorAll('.set-row').forEach(row => {
+                const setNum = parseInt(row.dataset.set);
+                const repsInput = row.querySelector('.reps-input');
+                const weightInput = row.querySelector('.weight-input');
+                preservedInputs.sets[setNum - 1] = {
+                    reps: repsInput?.value || '',
+                    weight: weightInput?.value || ''
+                };
+            });
 
-        const durationInput = oldCard.querySelector('.duration-input');
-        if (durationInput) {
-            preservedInputs.duration = durationInput.value;
+            const durationInput = oldCard.querySelector('.duration-input');
+            if (durationInput) {
+                preservedInputs.duration = durationInput.value;
+            }
         }
 
         // Create new card with updated exercise info
         const newCard = this.createExerciseCard(exercise, exerciseIndex, previousWorkout);
 
-        // Restore input values to new card
-        preservedInputs.sets.forEach((setValues, setIndex) => {
-            if (setValues && (setValues.reps || setValues.weight)) {
-                const setRow = newCard.querySelector(`.set-row[data-set="${setIndex + 1}"]`);
-                if (setRow) {
-                    const repsInput = setRow.querySelector('.reps-input');
-                    const weightInput = setRow.querySelector('.weight-input');
-                    if (repsInput && setValues.reps) repsInput.value = setValues.reps;
-                    if (weightInput && setValues.weight) weightInput.value = setValues.weight;
+        // Restore input values to new card only if we preserved them
+        if (preserveInputs) {
+            preservedInputs.sets.forEach((setValues, setIndex) => {
+                if (setValues && (setValues.reps || setValues.weight)) {
+                    const setRow = newCard.querySelector(`.set-row[data-set="${setIndex + 1}"]`);
+                    if (setRow) {
+                        const repsInput = setRow.querySelector('.reps-input');
+                        const weightInput = setRow.querySelector('.weight-input');
+                        if (repsInput && setValues.reps) repsInput.value = setValues.reps;
+                        if (weightInput && setValues.weight) weightInput.value = setValues.weight;
+                    }
                 }
-            }
-        });
+            });
 
-        if (preservedInputs.duration) {
-            const newDurationInput = newCard.querySelector('.duration-input');
-            if (newDurationInput) newDurationInput.value = preservedInputs.duration;
+            if (preservedInputs.duration) {
+                const newDurationInput = newCard.querySelector('.duration-input');
+                if (newDurationInput) newDurationInput.value = preservedInputs.duration;
+            }
         }
 
         // Replace old card with new card
@@ -1512,8 +1516,8 @@ const SubstitutionController = {
         // Persist substitution to localStorage
         Storage.saveInProgressWorkout();
 
-        // Update only the affected exercise card
-        await UI.updateSingleExerciseCard(exerciseIndex);
+        // Update only the affected exercise card (don't preserve inputs - show fresh previous data)
+        await UI.updateSingleExerciseCard(exerciseIndex, false);
 
         // Close modal
         this.closeSubstitutionModal();
@@ -1529,8 +1533,8 @@ const SubstitutionController = {
         // Persist to localStorage
         Storage.saveInProgressWorkout();
 
-        // Update only the affected exercise card
-        await UI.updateSingleExerciseCard(exerciseIndex);
+        // Update only the affected exercise card (don't preserve inputs - show fresh previous data)
+        await UI.updateSingleExerciseCard(exerciseIndex, false);
 
         // Close modal
         this.closeSubstitutionModal();
