@@ -1011,10 +1011,9 @@ const UI = {
 
         const timerElement = document.getElementById('rest-timer');
         timerElement.classList.remove('hidden');
-        timerElement.classList.remove('compact'); // Start in full mode
 
-        // Reset pause button text
-        document.getElementById('pause-timer-btn').textContent = 'Pause';
+        // Reset pause button to pause symbol
+        document.getElementById('pause-timer-btn').textContent = '⏸';
 
         this.updateTimerDisplay();
 
@@ -1030,30 +1029,6 @@ const UI = {
                 this.showNotification('Rest Complete', 'Time to start your next set!');
             }
         }, 1000);
-
-        // Add scroll listener for compact mode
-        this.enableCompactTimerOnScroll();
-    },
-
-    // Enable compact timer mode when scrolling
-    enableCompactTimerOnScroll() {
-        const timerElement = document.getElementById('rest-timer');
-        const mainContent = document.getElementById('main-content');
-
-        // Remove existing listener if any
-        if (AppState.scrollListener) {
-            mainContent.removeEventListener('scroll', AppState.scrollListener);
-        }
-
-        AppState.scrollListener = () => {
-            if (mainContent.scrollTop > 100) {
-                timerElement.classList.add('compact');
-            } else {
-                timerElement.classList.remove('compact');
-            }
-        };
-
-        mainContent.addEventListener('scroll', AppState.scrollListener);
     },
 
     // Update timer display
@@ -1088,16 +1063,8 @@ const UI = {
         }
         AppState.totalRestTime = 0; // Reset for next timer
 
-        // Remove scroll listener
-        if (AppState.scrollListener) {
-            const mainContent = document.getElementById('main-content');
-            mainContent.removeEventListener('scroll', AppState.scrollListener);
-            AppState.scrollListener = null;
-        }
-
         const timerElement = document.getElementById('rest-timer');
         timerElement.classList.add('hidden');
-        timerElement.classList.remove('compact');
     },
 
 
@@ -1363,10 +1330,10 @@ const UI = {
         document.getElementById('pause-timer-btn').addEventListener('click', () => {
             if (AppState.isTimerRunning) {
                 UI.pauseRestTimer(); // Pause without hiding
-                document.getElementById('pause-timer-btn').textContent = 'Resume';
+                document.getElementById('pause-timer-btn').textContent = '▶';
             } else {
                 UI.startRestTimer(AppState.remainingTime);
-                document.getElementById('pause-timer-btn').textContent = 'Pause';
+                document.getElementById('pause-timer-btn').textContent = '⏸';
             }
         });
 
