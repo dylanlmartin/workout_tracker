@@ -1424,13 +1424,6 @@ const UI = {
                 SubstitutionController.closeSubstitutionModal();
             }
         });
-
-        // Handle substitution selection (apply immediately when radio button is clicked)
-        document.addEventListener('change', (e) => {
-            if (e.target.name === 'substitution') {
-                SubstitutionController.applySubstitution();
-            }
-        });
     }
 };
 
