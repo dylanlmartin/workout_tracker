@@ -1410,6 +1410,10 @@ const UI = {
             SubstitutionController.closeSubstitutionModal();
         });
 
+        document.getElementById('apply-substitution').addEventListener('click', () => {
+            SubstitutionController.applySubstitution();
+        });
+
         document.getElementById('reset-exercise').addEventListener('click', () => {
             SubstitutionController.resetToOriginal();
         });
