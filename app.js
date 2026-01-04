@@ -762,20 +762,12 @@ const UI = {
         // Get the actual exercise definition (substituted or original)
         let actualExercise = exercise;
         if (isSubstituted) {
-            // Look up the substitution exercise details
-            const subs = getSubstitutions(exercise.name);
-            const subExercise = subs.exercises.find(e => e.name === substitutedName);
-            if (subExercise) {
-                // Use substitution exercise details for notes, sets, reps, etc.
-                actualExercise = {
-                    ...exercise,
-                    name: substitutedName,
-                    notes: subExercise.notes || exercise.notes,
-                    sets: subExercise.sets || exercise.sets,
-                    reps: subExercise.reps || exercise.reps,
-                    rest: subExercise.rest || exercise.rest
-                };
-            }
+            // Substitutions are just name changes - keep the original exercise properties
+            // but update the display name
+            actualExercise = {
+                ...exercise,
+                name: substitutedName
+            };
         }
 
         // Get previous data for this exercise (use substituted name if applicable)
@@ -1983,18 +1975,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
                 const exerciseDef = workoutDef.exercises[exerciseIndex];
 
-                // Account for substitutions when determining exercise type
-                let actualExerciseDef = exerciseDef;
-                const substitutedName = inProgress.substitutions?.[exerciseIndex];
-                if (substitutedName) {
-                    const subs = getSubstitutions(exerciseDef.name);
-                    const subExercise = subs?.exercises.find(e => e.name === substitutedName);
-                    if (subExercise) {
-                        actualExerciseDef = subExercise;
-                    }
-                }
-
-                const exerciseType = actualExerciseDef.exerciseType || 'reps';
+                // Substitutions don't change exercise type, only the name
+                // So we use the original exercise definition for type detection
+                const exerciseType = exerciseDef.exerciseType || 'reps';
 
                 if (exerciseType === 'duration') {
                     // Duration exercise: mark input as disabled and card as completed
@@ -2047,8 +2030,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     });
 
                     // Mark exercise card as completed if all sets done
-                    const expectedSets = actualExerciseDef.sets || exerciseDef.sets;
-                    if (exercise.sets.length === expectedSets) {
+                    if (exercise.sets.length === exerciseDef.sets) {
                         card.classList.add('completed');
                     }
                 }
