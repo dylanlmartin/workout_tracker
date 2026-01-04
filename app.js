@@ -1506,6 +1506,9 @@ const SubstitutionController = {
         // Save substitution
         AppState.substitutions[exerciseIndex] = substitutionName;
 
+        // Persist substitution to localStorage
+        Storage.saveInProgressWorkout();
+
         // Update only the affected exercise card
         await UI.updateSingleExerciseCard(exerciseIndex);
 
@@ -1519,6 +1522,9 @@ const SubstitutionController = {
 
         // Remove substitution
         delete AppState.substitutions[exerciseIndex];
+
+        // Persist to localStorage
+        Storage.saveInProgressWorkout();
 
         // Update only the affected exercise card
         await UI.updateSingleExerciseCard(exerciseIndex);
