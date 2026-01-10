@@ -821,43 +821,55 @@ const UI = {
         html += '<div class="sets-grid">';
 
         if (exerciseType === 'duration') {
-            // Duration-based: single input for time + timer + complete button
+            // Duration-based: track each set separately
             const durationUnit = actualExercise.durationUnit || 'minutes';
             const unitLabel = durationUnit === 'seconds' ? 'seconds' : 'minutes';
             const step = durationUnit === 'seconds' ? '1' : '0.5';
 
-            // Get previous duration if available
-            const prevDuration = previousExercise?.sets[0]?.reps?.match(/[\d.]+/)?.[0] || '';
+            for (let setNum = 1; setNum <= actualExercise.sets; setNum++) {
+                // Get previous duration for this set if available
+                const prevSet = previousExercise?.sets[setNum - 1];
+                const prevDuration = prevSet?.reps?.match(/[\d.]+/)?.[0] || '';
 
-            html += `<div class="duration-tracker">`;
-            html += `<label for="duration-input-${exerciseIndex}">Duration (${unitLabel}):</label>`;
-            html += `<div class="duration-input-row">`;
-            html += `<input type="number"
-                           id="duration-input-${exerciseIndex}"
-                           class="duration-input"
-                           placeholder="${actualExercise.targetDuration || '30'}"
-                           value="${prevDuration}"
-                           inputmode="decimal"
-                           min="0"
-                           step="${step}"
-                           data-unit="${durationUnit}">`;
-            html += `<button class="btn-secondary start-duration-timer-btn"
-                           data-exercise-index="${exerciseIndex}"
-                           data-target="${actualExercise.targetDuration || '30'}"
-                           data-unit="${durationUnit}">
-                        ⏱️ Start Timer
-                     </button>`;
-            html += `</div>`;
-            html += `<div class="duration-timer-display hidden" id="duration-timer-${exerciseIndex}">
-                        <span class="duration-timer-time">0:00</span>
-                        <button class="btn-danger stop-duration-timer-btn" data-exercise-index="${exerciseIndex}">
-                            Stop & Save
-                        </button>
-                     </div>`;
-            html += `<button class="btn-primary complete-duration-btn" data-exercise-index="${exerciseIndex}">
-                        Complete
-                     </button>`;
-            html += `</div>`;
+                html += `<div class="duration-set-row" data-set="${setNum}">`;
+                html += `<div class="set-number">${setNum}</div>`;
+                html += `<div class="duration-tracker">`;
+                html += `<div class="duration-input-row">`;
+                html += `<input type="number"
+                               class="duration-input"
+                               placeholder="${actualExercise.targetDuration || '30'}"
+                               value="${prevDuration}"
+                               inputmode="decimal"
+                               min="0"
+                               step="${step}"
+                               data-set="${setNum}"
+                               data-unit="${durationUnit}"
+                               aria-label="Duration for set ${setNum} (${unitLabel})">`;
+                html += `<button class="btn-secondary start-duration-timer-btn"
+                               data-exercise-index="${exerciseIndex}"
+                               data-set="${setNum}"
+                               data-target="${actualExercise.targetDuration || '30'}"
+                               data-unit="${durationUnit}">
+                            ⏱️
+                         </button>`;
+                html += `</div>`;
+                html += `<div class="duration-timer-display hidden" id="duration-timer-${exerciseIndex}-${setNum}">
+                            <span class="duration-timer-time">0:00</span>
+                            <button class="btn-danger stop-duration-timer-btn"
+                                    data-exercise-index="${exerciseIndex}"
+                                    data-set="${setNum}">
+                                Stop
+                            </button>
+                         </div>`;
+                html += `<div class="set-check">
+                           <input type="checkbox"
+                                  class="set-checkbox"
+                                  data-set="${setNum}"
+                                  aria-label="Complete set ${setNum}">
+                         </div>`;
+                html += `</div>`;
+                html += `</div>`;
+            }
 
         } else if (exerciseType === 'completion') {
             // Completion-based: simple checkbox
@@ -915,20 +927,25 @@ const UI = {
         // (exerciseType already declared above when building UI)
 
         if (exerciseType === 'duration') {
-            // Duration exercise: complete button and timer buttons
-            const completeBtn = card.querySelector('.complete-duration-btn');
-            completeBtn.addEventListener('click', () => {
-                WorkoutController.handleDurationComplete(exerciseIndex);
+            // Duration exercise: timer buttons and checkboxes for each set
+            card.querySelectorAll('.start-duration-timer-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    const setNum = parseInt(e.target.dataset.set);
+                    WorkoutController.startDurationTimer(exerciseIndex, setNum);
+                });
             });
 
-            const startTimerBtn = card.querySelector('.start-duration-timer-btn');
-            startTimerBtn.addEventListener('click', () => {
-                WorkoutController.startDurationTimer(exerciseIndex);
+            card.querySelectorAll('.stop-duration-timer-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    const setNum = parseInt(e.target.dataset.set);
+                    WorkoutController.stopDurationTimer(exerciseIndex, setNum);
+                });
             });
 
-            const stopTimerBtn = card.querySelector('.stop-duration-timer-btn');
-            stopTimerBtn.addEventListener('click', () => {
-                WorkoutController.stopDurationTimer(exerciseIndex);
+            card.querySelectorAll('.set-checkbox').forEach(checkbox => {
+                checkbox.addEventListener('change', (e) => {
+                    WorkoutController.handleDurationSetComplete(exerciseIndex, parseInt(e.target.dataset.set));
+                });
             });
 
         } else if (exerciseType === 'completion') {
@@ -1636,82 +1653,14 @@ const WorkoutController = {
         UI.startRestTimer(exercise.rest);
     },
 
-    // Handle duration-based exercise completion
-    handleDurationComplete(exerciseIndex) {
-        // Get workout and exercise
-        const workout = AppState.isOptionalWorkout
-            ? getOptionalWorkout(AppState.currentWorkout)
-            : getWorkout(AppState.currentWorkout);
-        const exercise = workout.exercises[exerciseIndex];
-
-        // Get duration input and unit
-        const card = document.querySelector(`[data-exercise-index="${exerciseIndex}"]`);
-        const durationInput = card.querySelector('.duration-input');
-        const duration = parseFloat(durationInput.value);
-        const unit = durationInput.dataset.unit || 'minutes';
-        const unitAbbrev = unit === 'seconds' ? 's' : 'min';
-        const unitLabel = unit === 'seconds' ? 'seconds' : 'minutes';
-
-        // Validate
-        if (!duration || duration <= 0) {
-            alert(`Please enter the duration completed (in ${unitLabel}).`);
-            return;
-        }
-
-        // Save set data (duration exercises typically have 1 set)
-        const setData = {
-            setNumber: 1,
-            reps: `${duration}${unitAbbrev}`,
-            weight: 0,
-            completed: true
-        };
-
-        // Add to workout data
-        const exerciseData = AppState.workoutData[exerciseIndex];
-        exerciseData.sets = [setData];
-
-        // Save in-progress workout to localStorage immediately
-        Storage.saveInProgressWorkout();
-
-        // Mark as completed
-        card.classList.add('completed');
-        durationInput.disabled = true;
-        const completeBtn = card.querySelector('.complete-duration-btn');
-        completeBtn.disabled = true;
-        completeBtn.textContent = '✓ Completed';
-
-        // Log to Google Sheets if authenticated (non-blocking)
-        if (AppState.isAuthenticated) {
-            SheetsAPI.logSet(
-                AppState.currentWorkout,
-                exercise.name,
-                'duration',
-                1,
-                `${duration}${unitAbbrev}`,
-                0,
-                exercise.rest
-            ).catch(error => {
-                console.error('Failed to log duration to Google Sheets:', error);
-                // Data is already saved to localStorage, so this is not critical
-            });
-        }
-
-        // Update UI
-        UI.updateExerciseCard(exerciseIndex);
-
-        // Start rest timer if applicable
-        if (exercise.rest > 0) {
-            UI.startRestTimer(exercise.rest);
-        }
-    },
-
     // Start duration timer (counts UP)
-    startDurationTimer(exerciseIndex) {
+    startDurationTimer(exerciseIndex, setNum) {
         const card = document.querySelector(`[data-exercise-index="${exerciseIndex}"]`);
-        const startBtn = card.querySelector('.start-duration-timer-btn');
-        const timerDisplay = card.querySelector('.duration-timer-display');
+        const setRow = card.querySelector(`.duration-set-row[data-set="${setNum}"]`);
+        const startBtn = setRow.querySelector('.start-duration-timer-btn');
+        const timerDisplay = setRow.querySelector('.duration-timer-display');
         const timerTime = timerDisplay.querySelector('.duration-timer-time');
-        const durationInput = card.querySelector('.duration-input');
+        const durationInput = setRow.querySelector('.duration-input');
         const unit = durationInput.dataset.unit;
 
         // Initialize timer state
@@ -1725,7 +1674,8 @@ const WorkoutController = {
 
         // Start counting from 0
         const startTime = Date.now();
-        AppState.durationTimers[exerciseIndex] = {
+        const timerKey = `${exerciseIndex}-${setNum}`;
+        AppState.durationTimers[timerKey] = {
             startTime: startTime,
             interval: setInterval(() => {
                 const elapsed = Math.floor((Date.now() - startTime) / 1000); // seconds
@@ -1737,15 +1687,17 @@ const WorkoutController = {
     },
 
     // Stop duration timer and save value
-    stopDurationTimer(exerciseIndex) {
+    stopDurationTimer(exerciseIndex, setNum) {
         const card = document.querySelector(`[data-exercise-index="${exerciseIndex}"]`);
-        const startBtn = card.querySelector('.start-duration-timer-btn');
-        const timerDisplay = card.querySelector('.duration-timer-display');
-        const durationInput = card.querySelector('.duration-input');
+        const setRow = card.querySelector(`.duration-set-row[data-set="${setNum}"]`);
+        const startBtn = setRow.querySelector('.start-duration-timer-btn');
+        const timerDisplay = setRow.querySelector('.duration-timer-display');
+        const durationInput = setRow.querySelector('.duration-input');
         const unit = durationInput.dataset.unit;
 
-        if (AppState.durationTimers && AppState.durationTimers[exerciseIndex]) {
-            const timer = AppState.durationTimers[exerciseIndex];
+        const timerKey = `${exerciseIndex}-${setNum}`;
+        if (AppState.durationTimers && AppState.durationTimers[timerKey]) {
+            const timer = AppState.durationTimers[timerKey];
             clearInterval(timer.interval);
 
             // Calculate final time
@@ -1764,11 +1716,103 @@ const WorkoutController = {
             durationInput.value = finalValue;
 
             // Clean up
-            delete AppState.durationTimers[exerciseIndex];
+            delete AppState.durationTimers[timerKey];
 
             // Show start button, hide timer display
             startBtn.classList.remove('hidden');
             timerDisplay.classList.add('hidden');
+        }
+    },
+
+    // Handle duration set completion (checkbox)
+    handleDurationSetComplete(exerciseIndex, setNum) {
+        const workout = AppState.isOptionalWorkout
+            ? getOptionalWorkout(AppState.currentWorkout)
+            : getWorkout(AppState.currentWorkout);
+        const exercise = workout.exercises[exerciseIndex];
+
+        const card = document.querySelector(`[data-exercise-index="${exerciseIndex}"]`);
+        const setRow = card.querySelector(`.duration-set-row[data-set="${setNum}"]`);
+        const checkbox = setRow.querySelector('.set-checkbox');
+        const durationInput = setRow.querySelector('.duration-input');
+        const unit = durationInput.dataset.unit || 'minutes';
+        const unitAbbrev = unit === 'seconds' ? 's' : 'min';
+
+        if (checkbox.checked) {
+            // Get duration value
+            const duration = parseFloat(durationInput.value);
+
+            if (!duration || duration <= 0) {
+                alert(`Please enter the duration for set ${setNum}.`);
+                checkbox.checked = false;
+                return;
+            }
+
+            // Create set data
+            const setData = {
+                setNumber: setNum,
+                reps: `${duration}${unitAbbrev}`,
+                weight: 0,
+                completed: true
+            };
+
+            // Find or create exercise data
+            let exerciseData = AppState.workoutData[exerciseIndex];
+            if (!exerciseData) {
+                exerciseData = {
+                    name: exercise.name,
+                    sets: []
+                };
+                AppState.workoutData[exerciseIndex] = exerciseData;
+            }
+
+            // Add this set (maintain set order)
+            const existingSetIndex = exerciseData.sets.findIndex(s => s.setNumber === setNum);
+            if (existingSetIndex >= 0) {
+                exerciseData.sets[existingSetIndex] = setData;
+            } else {
+                exerciseData.sets.push(setData);
+            }
+            exerciseData.sets.sort((a, b) => a.setNumber - b.setNumber);
+
+            // Save in-progress workout
+            Storage.saveInProgressWorkout();
+
+            // Mark row as completed
+            setRow.classList.add('completed');
+            durationInput.disabled = true;
+
+            // Log to Google Sheets
+            if (AppState.isAuthenticated) {
+                SheetsAPI.logExerciseSet(
+                    AppState.currentWorkout,
+                    workout.name,
+                    exercise.name,
+                    setNum,
+                    setData.reps,
+                    0
+                ).catch(error => {
+                    console.error('Failed to log duration set to Google Sheets:', error);
+                });
+            }
+
+            // Start rest timer if all sets not done yet
+            if (exerciseData.sets.length < exercise.sets && exercise.rest > 0) {
+                UI.startRestTimer(exercise.rest);
+            }
+
+            // Update progress
+            UI.updateWorkoutProgress();
+        } else {
+            // Unchecking - remove the set
+            const exerciseData = AppState.workoutData[exerciseIndex];
+            if (exerciseData) {
+                exerciseData.sets = exerciseData.sets.filter(s => s.setNumber !== setNum);
+            }
+
+            Storage.saveInProgressWorkout();
+            setRow.classList.remove('completed');
+            durationInput.disabled = false;
         }
     },
 
@@ -1952,20 +1996,24 @@ document.addEventListener('DOMContentLoaded', async () => {
                 const exerciseType = exerciseDef.exerciseType || 'reps';
 
                 if (exerciseType === 'duration') {
-                    // Duration exercise: mark input as disabled and card as completed
-                    const durationInput = card.querySelector('.duration-input');
-                    const completeBtn = card.querySelector('.complete-duration-btn');
+                    // Duration exercise: mark individual sets as completed
+                    exercise.sets.forEach(set => {
+                        const setRow = card.querySelector(`.duration-set-row[data-set="${set.setNumber}"]`);
+                        if (setRow) {
+                            const checkbox = setRow.querySelector('.set-checkbox');
+                            const durationInput = setRow.querySelector('.duration-input');
 
-                    if (exercise.sets[0]) {
-                        const duration = exercise.sets[0].reps;
-                        if (durationInput) {
-                            durationInput.value = duration.replace(/[^\d.]/g, ''); // Remove unit suffix
-                            durationInput.disabled = true;
+                            if (checkbox) checkbox.checked = true;
+                            if (durationInput) {
+                                durationInput.value = set.reps.replace(/[^\d.]/g, ''); // Remove unit suffix
+                                durationInput.disabled = true;
+                            }
+                            setRow.classList.add('completed');
                         }
-                        if (completeBtn) {
-                            completeBtn.disabled = true;
-                            completeBtn.textContent = '✓ Completed';
-                        }
+                    });
+
+                    // Mark exercise card as completed if all sets done
+                    if (exercise.sets.length === exerciseDef.sets) {
                         card.classList.add('completed');
                     }
 
