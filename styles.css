@@ -546,7 +546,6 @@ body {
 
 /* ===== Duration Tracker ===== */
 .duration-tracker {
-    flex: 1;
     display: flex;
     flex-direction: column;
     gap: var(--spacing-xs);
@@ -560,15 +559,15 @@ body {
 
 .duration-input {
     flex: 1;
-    padding: var(--spacing-xs) var(--spacing-sm);
+    padding: var(--spacing-sm);
     border: 1px solid var(--border);
     border-radius: var(--radius-sm);
-    font-size: var(--font-size-sm);
+    font-size: var(--font-size-base);
     background-color: var(--bg-primary);
     color: var(--text-primary);
     text-align: center;
     font-weight: 600;
-    min-width: 0;
+    min-width: 60px;
 }
 
 .duration-input:focus {
@@ -582,14 +581,19 @@ body {
 }
 
 .start-duration-timer-btn {
-    padding: var(--spacing-xs);
-    font-size: 16px;
-    min-width: 36px;
+    flex-shrink: 0;
+    padding: var(--spacing-sm);
+    font-size: 18px;
+    width: 40px;
+    height: 40px;
     background-color: var(--accent-primary);
     color: white;
     border: none;
     border-radius: var(--radius-sm);
     cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .start-duration-timer-btn:hover {
@@ -605,18 +609,20 @@ body {
 }
 
 .duration-timer-time {
+    flex: 1;
     font-variant-numeric: tabular-nums;
 }
 
 .stop-duration-timer-btn {
-    padding: var(--spacing-xs);
+    flex-shrink: 0;
+    padding: var(--spacing-xs) var(--spacing-sm);
     font-size: var(--font-size-xs);
-    min-width: 50px;
     background-color: var(--danger);
     color: white;
     border: none;
     border-radius: var(--radius-sm);
     cursor: pointer;
+    white-space: nowrap;
 }
 
 .stop-duration-timer-btn:hover {
