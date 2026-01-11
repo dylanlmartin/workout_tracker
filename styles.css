@@ -530,18 +530,26 @@ body {
 /* ===== Duration Set Row ===== */
 .duration-set-row {
     display: grid;
-    grid-template-columns: 30px 1fr 40px;
+    grid-template-columns: 35px 1fr 45px;
     gap: var(--spacing-sm);
     align-items: center;
     padding: var(--spacing-sm);
     background-color: var(--bg-secondary);
     border-radius: var(--radius-sm);
     transition: all 0.2s ease;
+    margin-bottom: var(--spacing-xs);
 }
 
 .duration-set-row.completed {
     background-color: var(--success-light);
     opacity: 0.8;
+}
+
+.duration-set-row .set-number {
+    font-size: var(--font-size-base);
+    font-weight: 600;
+    text-align: center;
+    color: var(--text-secondary);
 }
 
 /* ===== Duration Tracker ===== */
@@ -558,7 +566,7 @@ body {
 }
 
 .duration-input {
-    flex: 1;
+    width: 80px;
     padding: var(--spacing-sm);
     border: 1px solid var(--border);
     border-radius: var(--radius-sm);
@@ -567,7 +575,6 @@ body {
     color: var(--text-primary);
     text-align: center;
     font-weight: 600;
-    min-width: 60px;
 }
 
 .duration-input:focus {
@@ -582,10 +589,10 @@ body {
 
 .start-duration-timer-btn {
     flex-shrink: 0;
-    padding: var(--spacing-sm);
-    font-size: 18px;
-    width: 40px;
-    height: 40px;
+    padding: 0;
+    font-size: 20px;
+    width: 44px;
+    height: 44px;
     background-color: var(--accent-primary);
     color: white;
     border: none;
@@ -627,6 +634,12 @@ body {
 
 .stop-duration-timer-btn:hover {
     opacity: 0.9;
+}
+
+.duration-set-row .set-check {
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
 /* ===== Completion Tracker ===== */

@@ -861,13 +861,13 @@ const UI = {
                                 Stop
                             </button>
                          </div>`;
+                html += `</div>`;
                 html += `<div class="set-check">
                            <input type="checkbox"
                                   class="set-checkbox"
                                   data-set="${setNum}"
                                   aria-label="Complete set ${setNum}">
                          </div>`;
-                html += `</div>`;
                 html += `</div>`;
             }
 
