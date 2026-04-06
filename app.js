@@ -852,6 +852,10 @@ const UI = {
                                data-unit="${durationUnit}">
                             ⏱️
                          </button>`;
+                html += `<input type="checkbox"
+                              class="set-checkbox"
+                              data-set="${setNum}"
+                              aria-label="Complete set ${setNum}">`;
                 html += `</div>`;
                 html += `<div class="duration-timer-display hidden" id="duration-timer-${exerciseIndex}-${setNum}">
                             <span class="duration-timer-time">0:00</span>
@@ -862,12 +866,6 @@ const UI = {
                             </button>
                          </div>`;
                 html += `</div>`;
-                html += `<div class="set-check">
-                           <input type="checkbox"
-                                  class="set-checkbox"
-                                  data-set="${setNum}"
-                                  aria-label="Complete set ${setNum}">
-                         </div>`;
                 html += `</div>`;
             }
 

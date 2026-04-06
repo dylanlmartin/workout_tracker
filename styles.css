@@ -530,7 +530,7 @@ body {
 /* ===== Duration Set Row ===== */
 .duration-set-row {
     display: grid;
-    grid-template-columns: 35px 1fr 45px;
+    grid-template-columns: 35px 1fr;
     gap: var(--spacing-sm);
     align-items: center;
     padding: var(--spacing-sm);
@@ -563,6 +563,14 @@ body {
     display: flex;
     gap: var(--spacing-xs);
     align-items: center;
+}
+
+.duration-input-row input[type="checkbox"] {
+    width: 24px;
+    height: 24px;
+    cursor: pointer;
+    accent-color: var(--success);
+    flex-shrink: 0;
 }
 
 .duration-input {
