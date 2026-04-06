@@ -36,7 +36,7 @@ const WORKOUTS = {
                 name: 'Neutral-Grip DB Floor Press',
                 sets: 4,
                 reps: '8-12',
-                rest: 180,
+                rest: 120,
                 notes: 'Maintain scapular retraction. Elbows at 45° angle. Pause when triceps touch ground.'
             },
             {
@@ -50,7 +50,7 @@ const WORKOUTS = {
                 name: 'Cable Press (decline, neutral)',
                 sets: 3,
                 reps: '10-12',
-                rest: 90,
+                rest: 60,
                 superset: 'Cable Row',
                 notes: 'Set cables at high position for decline angle. Maintain neutral grip.'
             },
@@ -58,7 +58,7 @@ const WORKOUTS = {
                 name: 'Cable Row',
                 sets: 3,
                 reps: '10-12',
-                rest: 90,
+                rest: 60,
                 superset: 'Cable Press (decline, neutral)',
                 notes: 'Control the negative. Avoid shrugging shoulders.'
             },
@@ -66,7 +66,7 @@ const WORKOUTS = {
                 name: 'DB Lateral Raise',
                 sets: 3,
                 reps: '12-15',
-                rest: 90,
+                rest: 60,
                 superset: 'DB Reverse Fly',
                 notes: 'Slight bend in elbows. Lead with elbows, not hands.'
             },
@@ -74,7 +74,7 @@ const WORKOUTS = {
                 name: 'DB Reverse Fly',
                 sets: 3,
                 reps: '12-15',
-                rest: 90,
+                rest: 60,
                 superset: 'DB Lateral Raise',
                 notes: 'Hinge at hips. Squeeze shoulder blades together at top.'
             },
@@ -132,7 +132,7 @@ const WORKOUTS = {
                 name: 'Back Squat',
                 sets: 5,
                 reps: '4-6',
-                rest: 180,
+                rest: 120,
                 notes: 'Chest up, core braced. Hip hinge then knee bend. Depth to parallel or slightly below.'
             },
             {
@@ -146,7 +146,7 @@ const WORKOUTS = {
                 name: 'Leg Curl',
                 sets: 3,
                 reps: '10-12',
-                rest: 90,
+                rest: 60,
                 superset: 'Leg Extension',
                 notes: 'Control the eccentric. Full range of motion.'
             },
@@ -154,7 +154,7 @@ const WORKOUTS = {
                 name: 'Leg Extension',
                 sets: 3,
                 reps: '10-12',
-                rest: 90,
+                rest: 60,
                 superset: 'Leg Curl',
                 notes: 'Squeeze quads at top. Slow negative.'
             },
@@ -197,14 +197,14 @@ const WORKOUTS = {
                 name: 'Neutral-Grip DB Floor Press',
                 sets: 5,
                 reps: '4-6',
-                rest: 180,
+                rest: 120,
                 notes: 'Heavier than Upper A. Maintain scapular retraction. Explosive concentric, controlled eccentric.'
             },
             {
                 name: 'Barbell Row',
                 sets: 5,
                 reps: '4-6',
-                rest: 180,
+                rest: 120,
                 notes: 'Heavy weight. Maintain form. Pull explosively, lower with control.'
             },
             {
@@ -239,14 +239,14 @@ const WORKOUTS = {
                 name: 'Hammer Curls',
                 sets: 3,
                 reps: '8-10',
-                rest: 90,
+                rest: 60,
                 notes: 'Neutral grip throughout. Control the eccentric.'
             },
             {
                 name: 'Close-Grip Pushdowns',
                 sets: 3,
                 reps: '8-10',
-                rest: 90,
+                rest: 60,
                 notes: 'Elbows tucked. Full extension at bottom. Squeeze triceps.'
             },
             {
@@ -295,7 +295,7 @@ const WORKOUTS = {
                 name: 'Walking Lunges',
                 sets: 3,
                 reps: '12/leg',
-                rest: 90,
+                rest: 60,
                 superset: 'Nordic Curls',
                 notes: 'Long stride. Knee doesn\'t pass toes. Keep torso upright.'
             },
@@ -303,7 +303,7 @@ const WORKOUTS = {
                 name: 'Nordic Curls',
                 sets: 3,
                 reps: 'AMRAP',
-                rest: 90,
+                rest: 60,
                 superset: 'Walking Lunges',
                 notes: 'As many reps as possible. Focus on 5-second eccentric. Use assistance if needed.'
             },
@@ -1027,7 +1027,7 @@ const OPTIONAL_WORKOUTS = {
                 name: 'Cable Press (any angle)',
                 sets: 3,
                 reps: '12-15',
-                rest: 90,
+                rest: 60,
                 notes: 'Use 50-60% of your DB floor press weight equivalent'
             },
             {

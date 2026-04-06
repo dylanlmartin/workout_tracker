@@ -1144,6 +1144,29 @@ body {
     flex: 1;
 }
 
+.custom-exercise-input {
+    margin-top: var(--spacing-sm);
+    margin-left: var(--spacing-lg);
+    padding: var(--spacing-md);
+    background-color: var(--bg-secondary);
+    border-radius: var(--radius-md);
+}
+
+.custom-exercise-input input[type="text"] {
+    width: 100%;
+    padding: var(--spacing-sm) var(--spacing-md);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    font-size: var(--font-size-base);
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
+}
+
+.custom-exercise-input input[type="text"]:focus {
+    outline: none;
+    border-color: var(--accent-primary);
+}
+
 .modal-actions {
     display: grid;
     grid-template-columns: 1fr;
