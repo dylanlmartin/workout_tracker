@@ -1825,25 +1825,24 @@ const WorkoutController = {
 
             // Log to Google Sheets
             if (AppState.isAuthenticated) {
-                SheetsAPI.logExerciseSet(
+                SheetsAPI.logSet(
                     AppState.currentWorkout,
-                    workout.name,
                     exercise.name,
+                    'duration',
                     setNum,
                     setData.reps,
-                    0
+                    0,
+                    exercise.rest
                 ).catch(error => {
                     console.error('Failed to log duration set to Google Sheets:', error);
                 });
             }
 
-            // Start rest timer if all sets not done yet
-            if (exerciseData.sets.length < exercise.sets && exercise.rest > 0) {
-                UI.startRestTimer(exercise.rest);
-            }
-
             // Update progress
             UI.updateWorkoutProgress();
+
+            // Start rest timer (same as regular reps exercises)
+            UI.startRestTimer(exercise.rest);
         } else {
             // Unchecking - remove the set
             const exerciseData = AppState.workoutData[exerciseIndex];
