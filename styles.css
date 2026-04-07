@@ -530,7 +530,7 @@ body {
 /* ===== Duration Set Row ===== */
 .duration-set-row {
     display: grid;
-    grid-template-columns: 35px 1fr 45px;
+    grid-template-columns: 35px 1fr;
     gap: var(--spacing-sm);
     align-items: center;
     padding: var(--spacing-sm);
@@ -563,6 +563,14 @@ body {
     display: flex;
     gap: var(--spacing-xs);
     align-items: center;
+}
+
+.duration-input-row input[type="checkbox"] {
+    width: 24px;
+    height: 24px;
+    cursor: pointer;
+    accent-color: var(--success);
+    flex-shrink: 0;
 }
 
 .duration-input {
@@ -611,18 +619,22 @@ body {
     display: flex;
     gap: var(--spacing-xs);
     align-items: center;
+    padding: var(--spacing-xs) var(--spacing-sm);
+    background-color: var(--accent-light);
+    border-radius: var(--radius-sm);
     font-size: var(--font-size-sm);
     font-weight: 600;
 }
 
 .duration-timer-time {
-    flex: 1;
     font-variant-numeric: tabular-nums;
+    color: var(--accent-primary);
+    min-width: 45px;
 }
 
 .stop-duration-timer-btn {
     flex-shrink: 0;
-    padding: var(--spacing-xs) var(--spacing-sm);
+    padding: var(--spacing-xs);
     font-size: var(--font-size-xs);
     background-color: var(--danger);
     color: white;
@@ -630,6 +642,8 @@ body {
     border-radius: var(--radius-sm);
     cursor: pointer;
     white-space: nowrap;
+    min-width: 50px;
+    height: 32px;
 }
 
 .stop-duration-timer-btn:hover {
@@ -1142,6 +1156,29 @@ body {
 
 .substitution-option-text {
     flex: 1;
+}
+
+.custom-exercise-input {
+    margin-top: var(--spacing-sm);
+    margin-left: var(--spacing-lg);
+    padding: var(--spacing-md);
+    background-color: var(--bg-secondary);
+    border-radius: var(--radius-md);
+}
+
+.custom-exercise-input input[type="text"] {
+    width: 100%;
+    padding: var(--spacing-sm) var(--spacing-md);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    font-size: var(--font-size-base);
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
+}
+
+.custom-exercise-input input[type="text"]:focus {
+    outline: none;
+    border-color: var(--accent-primary);
 }
 
 .modal-actions {

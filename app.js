@@ -852,6 +852,10 @@ const UI = {
                                data-unit="${durationUnit}">
                             ⏱️
                          </button>`;
+                html += `<input type="checkbox"
+                              class="set-checkbox"
+                              data-set="${setNum}"
+                              aria-label="Complete set ${setNum}">`;
                 html += `</div>`;
                 html += `<div class="duration-timer-display hidden" id="duration-timer-${exerciseIndex}-${setNum}">
                             <span class="duration-timer-time">0:00</span>
@@ -862,12 +866,6 @@ const UI = {
                             </button>
                          </div>`;
                 html += `</div>`;
-                html += `<div class="set-check">
-                           <input type="checkbox"
-                                  class="set-checkbox"
-                                  data-set="${setNum}"
-                                  aria-label="Complete set ${setNum}">
-                         </div>`;
                 html += `</div>`;
             }
 
@@ -1470,7 +1468,38 @@ const SubstitutionController = {
                        ${currentSubstitution === option ? 'checked' : ''}>
                 <span class="substitution-option-text">${option}</span>
             </label>
-        `).join('');
+        `).join('') + `
+            <label class="substitution-option">
+                <input type="radio"
+                       name="substitution"
+                       value="__custom__"
+                       data-custom="true"
+                       ${currentSubstitution && !substitutions.options.includes(currentSubstitution) ? 'checked' : ''}>
+                <span class="substitution-option-text">Custom Exercise</span>
+            </label>
+            <div id="custom-exercise-input" class="custom-exercise-input ${currentSubstitution && !substitutions.options.includes(currentSubstitution) ? '' : 'hidden'}">
+                <input type="text"
+                       id="custom-exercise-name"
+                       placeholder="Enter exercise name..."
+                       value="${currentSubstitution && !substitutions.options.includes(currentSubstitution) ? currentSubstitution : ''}">
+            </div>
+        `;
+
+        // Add event listener for custom option radio button
+        const customRadio = optionsDiv.querySelector('input[data-custom="true"]');
+        const customInput = document.getElementById('custom-exercise-input');
+        const customNameInput = document.getElementById('custom-exercise-name');
+
+        optionsDiv.querySelectorAll('input[name="substitution"]').forEach(radio => {
+            radio.addEventListener('change', () => {
+                if (radio.dataset.custom) {
+                    customInput.classList.remove('hidden');
+                    customNameInput.focus();
+                } else {
+                    customInput.classList.add('hidden');
+                }
+            });
+        });
 
         // Show modal
         modal.classList.remove('hidden');
@@ -1492,7 +1521,19 @@ const SubstitutionController = {
         }
 
         const exerciseIndex = AppState.currentSubstitutionExercise;
-        const substitutionName = selectedRadio.value;
+        let substitutionName = selectedRadio.value;
+
+        // If custom option selected, get value from text input
+        if (selectedRadio.dataset.custom) {
+            const customNameInput = document.getElementById('custom-exercise-name');
+            substitutionName = customNameInput.value.trim();
+
+            if (!substitutionName) {
+                alert('Please enter a custom exercise name.');
+                customNameInput.focus();
+                return;
+            }
+        }
 
         // Save substitution
         AppState.substitutions[exerciseIndex] = substitutionName;
@@ -1784,25 +1825,24 @@ const WorkoutController = {
 
             // Log to Google Sheets
             if (AppState.isAuthenticated) {
-                SheetsAPI.logExerciseSet(
+                SheetsAPI.logSet(
                     AppState.currentWorkout,
-                    workout.name,
                     exercise.name,
+                    'duration',
                     setNum,
                     setData.reps,
-                    0
+                    0,
+                    exercise.rest
                 ).catch(error => {
                     console.error('Failed to log duration set to Google Sheets:', error);
                 });
             }
 
-            // Start rest timer if all sets not done yet
-            if (exerciseData.sets.length < exercise.sets && exercise.rest > 0) {
-                UI.startRestTimer(exercise.rest);
-            }
-
             // Update progress
             UI.updateWorkoutProgress();
+
+            // Start rest timer (same as regular reps exercises)
+            UI.startRestTimer(exercise.rest);
         } else {
             // Unchecking - remove the set
             const exerciseData = AppState.workoutData[exerciseIndex];
