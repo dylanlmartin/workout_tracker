@@ -17,6 +17,7 @@ const AppState = {
     totalRestTime: 0,
     timerEndTime: null, // Timestamp when timer should end
     wakeLock: null, // Wake lock to keep screen on
+    swRegistration: null, // Service worker registration for background notifications
     isAuthenticated: false,
     gapiInited: false,
     gisInited: false,
@@ -1114,31 +1115,45 @@ const UI = {
         }
     },
 
-    // Show browser notification
-    showNotification(title, body) {
-        // Check if notifications are supported and permitted
+    // Show browser notification (works even when app is in background)
+    async showNotification(title, body) {
+        // Check if notifications are supported
         if (!('Notification' in window)) {
             return;
         }
 
-        if (Notification.permission === 'granted') {
-            new Notification(title, {
-                body: body,
-                icon: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y=".9em" font-size="90">💪</text></svg>',
-                badge: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y=".9em" font-size="90">💪</text></svg>',
-                vibrate: [200, 100, 200]
-            });
-        } else if (Notification.permission !== 'denied') {
-            // Request permission
-            Notification.requestPermission().then(permission => {
-                if (permission === 'granted') {
-                    new Notification(title, {
-                        body: body,
-                        icon: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y=".9em" font-size="90">💪</text></svg>',
-                        vibrate: [200, 100, 200]
-                    });
-                }
-            });
+        // Request permission if needed
+        if (Notification.permission === 'default') {
+            await Notification.requestPermission();
+        }
+
+        // Only proceed if permission granted
+        if (Notification.permission !== 'granted') {
+            return;
+        }
+
+        const notificationOptions = {
+            body: body,
+            icon: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y=".9em" font-size="90">💪</text></svg>',
+            badge: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y=".9em" font-size="90">💪</text></svg>',
+            vibrate: [200, 100, 200],
+            tag: 'rest-timer',
+            requireInteraction: false,
+            silent: false
+        };
+
+        // Use service worker notification if available (works in background)
+        if (AppState.swRegistration) {
+            try {
+                await AppState.swRegistration.showNotification(title, notificationOptions);
+            } catch (error) {
+                console.error('Service worker notification failed:', error);
+                // Fallback to regular notification
+                new Notification(title, notificationOptions);
+            }
+        } else {
+            // Fallback to regular notification (may not work in background)
+            new Notification(title, notificationOptions);
         }
     },
 
@@ -1998,6 +2013,17 @@ const WorkoutController = {
 // Initialize app when DOM is loaded
 document.addEventListener('DOMContentLoaded', async () => {
     UI.init();
+
+    // Register service worker for background notifications
+    if ('serviceWorker' in navigator) {
+        try {
+            const registration = await navigator.serviceWorker.register('./service-worker.js');
+            AppState.swRegistration = registration;
+            console.log('Service Worker registered successfully');
+        } catch (error) {
+            console.error('Service Worker registration failed:', error);
+        }
+    }
 
     // Check for in-progress workout and offer to restore
     const inProgress = Storage.getInProgressWorkout();
