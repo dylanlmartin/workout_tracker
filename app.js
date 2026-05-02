@@ -1117,18 +1117,23 @@ const UI = {
 
     // Show browser notification (works even when app is in background)
     async showNotification(title, body) {
+        console.log('showNotification called:', title, body);
+
         // Check if notifications are supported
         if (!('Notification' in window)) {
+            console.error('Notifications not supported');
             return;
         }
 
         // Request permission if needed
         if (Notification.permission === 'default') {
-            await Notification.requestPermission();
+            const permission = await Notification.requestPermission();
+            console.log('Requested notification permission:', permission);
         }
 
         // Only proceed if permission granted
         if (Notification.permission !== 'granted') {
+            console.error('Notification permission denied:', Notification.permission);
             return;
         }
 
@@ -1143,16 +1148,20 @@ const UI = {
         };
 
         // Use service worker notification if available (works in background)
-        if (AppState.swRegistration) {
+        if (AppState.swRegistration && AppState.swRegistration.active) {
             try {
+                console.log('Using service worker notification');
                 await AppState.swRegistration.showNotification(title, notificationOptions);
+                console.log('Service worker notification sent successfully');
             } catch (error) {
                 console.error('Service worker notification failed:', error);
                 // Fallback to regular notification
+                console.log('Falling back to regular notification');
                 new Notification(title, notificationOptions);
             }
         } else {
             // Fallback to regular notification (may not work in background)
+            console.log('Using regular notification (no service worker)');
             new Notification(title, notificationOptions);
         }
     },
@@ -1688,9 +1697,12 @@ const WorkoutController = {
 
         // Log to Google Sheets if authenticated (non-blocking)
         if (AppState.isAuthenticated) {
+            // Use substituted name if exists, otherwise use original name
+            const exerciseName = AppState.substitutions[exerciseIndex] || exercise.name;
+
             SheetsAPI.logSet(
                 AppState.currentWorkout,
-                exercise.name,
+                exerciseName,
                 exercise.exerciseType || 'reps',
                 setNumber,
                 reps,
@@ -1840,9 +1852,12 @@ const WorkoutController = {
 
             // Log to Google Sheets
             if (AppState.isAuthenticated) {
+                // Use substituted name if exists, otherwise use original name
+                const exerciseName = AppState.substitutions[exerciseIndex] || exercise.name;
+
                 SheetsAPI.logSet(
                     AppState.currentWorkout,
-                    exercise.name,
+                    exerciseName,
                     'duration',
                     setNum,
                     setData.reps,
@@ -1904,9 +1919,12 @@ const WorkoutController = {
 
             // Log to Google Sheets if authenticated (non-blocking)
             if (AppState.isAuthenticated) {
+                // Use substituted name if exists, otherwise use original name
+                const exerciseName = AppState.substitutions[exerciseIndex] || exercise.name;
+
                 SheetsAPI.logSet(
                     AppState.currentWorkout,
-                    exercise.name,
+                    exerciseName,
                     'completion',
                     1,
                     'Completed',
@@ -2017,12 +2035,34 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Register service worker for background notifications
     if ('serviceWorker' in navigator) {
         try {
-            const registration = await navigator.serviceWorker.register('./service-worker.js');
-            AppState.swRegistration = registration;
-            console.log('Service Worker registered successfully');
+            // Register service worker with explicit scope
+            const registration = await navigator.serviceWorker.register('./service-worker.js', {
+                scope: './'
+            });
+
+            console.log('Service Worker registering...');
+
+            // Wait for service worker to be ready
+            const readyRegistration = await navigator.serviceWorker.ready;
+            AppState.swRegistration = readyRegistration;
+
+            console.log('Service Worker registered and ready:', {
+                active: !!readyRegistration.active,
+                scope: readyRegistration.scope
+            });
+
+            // Request notification permission immediately
+            if ('Notification' in window && Notification.permission === 'default') {
+                const permission = await Notification.requestPermission();
+                console.log('Notification permission:', permission);
+            } else {
+                console.log('Current notification permission:', Notification.permission);
+            }
         } catch (error) {
             console.error('Service Worker registration failed:', error);
         }
+    } else {
+        console.warn('Service Workers not supported in this browser');
     }
 
     // Check for in-progress workout and offer to restore

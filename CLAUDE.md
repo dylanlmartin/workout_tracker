@@ -12,12 +12,31 @@ Before marking any fix as complete:
 4. **Test on the actual target** - Verify which DOM elements are used (e.g., which element actually scrolls)
 5. **Consider all variations** - Check all exercise types, all user flows, all states
 
+### Full Pipeline Consideration
+**CRITICAL: Always trace through the ENTIRE data pipeline when making changes.**
+
+When implementing or modifying features, trace the complete flow from user action to final destination:
+1. **User interaction** - What triggers the change?
+2. **UI updates** - What displays to the user?
+3. **Data persistence** - Is it saved to localStorage?
+4. **External logging** - Does it need to go to Google Sheets?
+5. **Data restoration** - Will it reload correctly?
+
+Example: When implementing exercise substitutions:
+- ✅ UI shows substituted exercise name
+- ✅ Saves substitution to AppState.substitutions
+- ✅ Persists to localStorage
+- ❌ **MISSED**: Google Sheets logging still used original name
+
+**Always ask: "What else uses this data?"** and check ALL those locations.
+
 ### Common Mistakes to Avoid
 - Don't claim a fix works without tracing through the execution path
 - Don't assume HTML structure - read the actual markup
 - Don't assume CSS selectors target the right elements - verify in styles.css
 - Don't fix one case and ignore others (e.g., fixing reps/weight but not duration/completion)
 - Don't skip cleanup code (e.g., removing event listeners when components unmount)
+- **Don't implement partial solutions** - trace the full pipeline and update all affected code paths
 
 ### Formatting and Mobile-First
 - **Always check formatting on mobile screens** before claiming UI fixes work
