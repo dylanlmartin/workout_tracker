@@ -1697,9 +1697,12 @@ const WorkoutController = {
 
         // Log to Google Sheets if authenticated (non-blocking)
         if (AppState.isAuthenticated) {
+            // Use substituted name if exists, otherwise use original name
+            const exerciseName = AppState.substitutions[exerciseIndex] || exercise.name;
+
             SheetsAPI.logSet(
                 AppState.currentWorkout,
-                exercise.name,
+                exerciseName,
                 exercise.exerciseType || 'reps',
                 setNumber,
                 reps,
@@ -1849,9 +1852,12 @@ const WorkoutController = {
 
             // Log to Google Sheets
             if (AppState.isAuthenticated) {
+                // Use substituted name if exists, otherwise use original name
+                const exerciseName = AppState.substitutions[exerciseIndex] || exercise.name;
+
                 SheetsAPI.logSet(
                     AppState.currentWorkout,
-                    exercise.name,
+                    exerciseName,
                     'duration',
                     setNum,
                     setData.reps,
@@ -1913,9 +1919,12 @@ const WorkoutController = {
 
             // Log to Google Sheets if authenticated (non-blocking)
             if (AppState.isAuthenticated) {
+                // Use substituted name if exists, otherwise use original name
+                const exerciseName = AppState.substitutions[exerciseIndex] || exercise.name;
+
                 SheetsAPI.logSet(
                     AppState.currentWorkout,
-                    exercise.name,
+                    exerciseName,
                     'completion',
                     1,
                     'Completed',
