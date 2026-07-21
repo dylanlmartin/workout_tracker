@@ -46,6 +46,12 @@ Example: When implementing exercise substitutions:
 
 ## Project-Specific Context
 
+### Workout Duration Target
+**Target: 60-75 minutes per session**
+- This is the original design specification for workout length
+- Rest time adjustments and exercise selection should maintain this target
+- Current rest times: 2min for compounds, 60s for accessories
+
 ### Exercise Type System
 This app has **three exercise types** that must be handled separately:
 1. **'reps'** (default) - Traditional set-based with reps and weight
