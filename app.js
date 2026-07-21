@@ -230,9 +230,59 @@ const SheetsAPI = {
                 AppState.isAuthenticated = true;
                 UI.updateAuthStatus(true);
                 console.log('Restored saved Google token');
+
+                // Verify token is still valid by making a test call
+                this.verifyTokenAndRefresh();
             } else {
                 UI.updateAuthStatus(false);
+                // Auto-prompt for authentication on app load
+                console.log('No saved token - triggering auto sign-in');
+                this.autoSignIn();
             }
+        }
+    },
+
+    // Attempt automatic sign-in on app load
+    autoSignIn() {
+        if (!AppState.tokenClient) return;
+
+        AppState.tokenClient.callback = async (resp) => {
+            if (resp.error !== undefined) {
+                console.log('Auto sign-in failed or cancelled:', resp.error);
+                return;
+            }
+
+            // Save the token to localStorage for persistence
+            const token = gapi.client.getToken();
+            if (token) {
+                Storage.saveGoogleToken(token);
+            }
+
+            AppState.isAuthenticated = true;
+            UI.updateAuthStatus(true);
+            UI.setSyncStatus('synced');
+            console.log('Auto sign-in successful');
+
+            // Try to sync existing data
+            await this.syncLocalDataToSheets();
+        };
+
+        // Request token with consent prompt for first-time users
+        AppState.tokenClient.requestAccessToken({ prompt: 'consent' });
+    },
+
+    // Verify saved token is still valid; refresh silently if expired
+    async verifyTokenAndRefresh() {
+        try {
+            // Make a lightweight call to verify token works
+            await gapi.client.sheets.spreadsheets.get({
+                spreadsheetId: CONFIG.SHEET_ID,
+                fields: 'spreadsheetId'
+            });
+            console.log('Token verified as valid');
+        } catch (error) {
+            console.log('Saved token invalid, attempting refresh');
+            this.handleExpiredToken();
         }
     },
 
