@@ -896,7 +896,7 @@ const UI = {
                                data-set="${setNum}"
                                data-unit="${durationUnit}"
                                aria-label="Duration for set ${setNum} (${unitLabel})">`;
-                html += `<button class="btn-secondary start-duration-timer-btn"
+                html += `<button class="start-duration-timer-btn"
                                data-exercise-index="${exerciseIndex}"
                                data-set="${setNum}"
                                data-target="${actualExercise.targetDuration || '30'}"
@@ -910,7 +910,7 @@ const UI = {
                 html += `</div>`;
                 html += `<div class="duration-timer-display hidden" id="duration-timer-${exerciseIndex}-${setNum}">
                             <span class="duration-timer-time">0:00</span>
-                            <button class="btn-danger stop-duration-timer-btn"
+                            <button class="stop-duration-timer-btn"
                                     data-exercise-index="${exerciseIndex}"
                                     data-set="${setNum}">
                                 Stop
