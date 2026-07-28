@@ -129,15 +129,28 @@ const Storage = {
         return mode === 'true';
     },
 
-    // Save Google OAuth token
+    // Save Google OAuth token (stamps an absolute expiry so we can detect
+    // staleness on load instead of discovering it via a 401 mid-workout)
     saveGoogleToken(token) {
-        localStorage.setItem(this.KEYS.GOOGLE_TOKEN, JSON.stringify(token));
+        const stamped = { ...token };
+        if (token.expires_in) {
+            stamped.expires_at = Date.now() + (Number(token.expires_in) * 1000);
+        }
+        localStorage.setItem(this.KEYS.GOOGLE_TOKEN, JSON.stringify(stamped));
     },
 
     // Get Google OAuth token
     getGoogleToken() {
         const data = localStorage.getItem(this.KEYS.GOOGLE_TOKEN);
         return data ? JSON.parse(data) : null;
+    },
+
+    // Is the token missing, expired, or about to expire?
+    // Treats an unstamped token (saved before expiry tracking existed) as stale.
+    isTokenStale(token, skewMs = 5 * 60 * 1000) {
+        if (!token || !token.access_token) return true;
+        if (!token.expires_at) return true;
+        return Date.now() >= (token.expires_at - skewMs);
     },
 
     // Clear Google OAuth token
@@ -220,39 +233,58 @@ const SheetsAPI = {
         }
     },
 
-    // Enable auth buttons when both APIs are ready
+    // Establish auth as soon as both Google APIs are ready, so the account is
+    // connected at app open rather than part-way through a workout.
     maybeEnableButtons() {
-        if (AppState.gapiInited && AppState.gisInited) {
-            // Try to restore saved token
-            const savedToken = Storage.getGoogleToken();
-            if (savedToken) {
-                gapi.client.setToken(savedToken);
-                AppState.isAuthenticated = true;
-                UI.updateAuthStatus(true);
-                console.log('Restored saved Google token');
+        if (!AppState.gapiInited || !AppState.gisInited) return;
 
-                // Verify token is still valid by making a test call
-                this.verifyTokenAndRefresh();
-            } else {
-                UI.updateAuthStatus(false);
-                // Auto-prompt for authentication on app load
-                console.log('No saved token - triggering auto sign-in');
-                this.autoSignIn();
-            }
+        const savedToken = Storage.getGoogleToken();
+
+        // A token that is still comfortably valid needs no network round-trip
+        if (savedToken && !Storage.isTokenStale(savedToken)) {
+            gapi.client.setToken(savedToken);
+            AppState.isAuthenticated = true;
+            UI.updateAuthStatus(true);
+            UI.setSyncStatus('synced');
+            console.log('Restored valid Google token');
+            return;
         }
+
+        // Missing, expired, or expiring soon: renew now, at app open, so the
+        // token cannot lapse mid-workout and interrupt with a sign-in prompt.
+        if (savedToken) {
+            // Keep the stale token set so gapi has credentials if refresh fails
+            gapi.client.setToken(savedToken);
+            console.log('Saved token stale - refreshing at app open');
+        } else {
+            console.log('No saved token - attempting silent sign-in at app open');
+        }
+        UI.updateAuthStatus(false);
+        this.attemptSilentSignIn();
     },
 
-    // Attempt automatic sign-in on app load
-    autoSignIn() {
+    // Renew the access token WITHOUT a popup.
+    // prompt: '' reuses the existing Google session, so it needs no user
+    // gesture. A forced 'consent' prompt would open a popup, which iOS Safari
+    // blocks outside a tap - which is exactly why auth used to surface later,
+    // on the first tap that reached Sheets (opening a workout).
+    attemptSilentSignIn() {
         if (!AppState.tokenClient) return;
 
         AppState.tokenClient.callback = async (resp) => {
             if (resp.error !== undefined) {
-                console.log('Auto sign-in failed or cancelled:', resp.error);
+                // Silent renewal cannot always succeed (no active Google
+                // session, consent never granted, or Safari blocking the
+                // hidden iframe). Fall back to an explicit connect prompt on
+                // the home screen so the tap happens here, not mid-workout.
+                console.log('Silent sign-in unavailable:', resp.error);
+                AppState.isAuthenticated = false;
+                UI.updateAuthStatus(false);
+                UI.setSyncStatus('offline');
+                UI.showConnectPrompt();
                 return;
             }
 
-            // Save the token to localStorage for persistence
             const token = gapi.client.getToken();
             if (token) {
                 Storage.saveGoogleToken(token);
@@ -261,29 +293,13 @@ const SheetsAPI = {
             AppState.isAuthenticated = true;
             UI.updateAuthStatus(true);
             UI.setSyncStatus('synced');
-            console.log('Auto sign-in successful');
+            UI.hideConnectPrompt();
+            console.log('Silent sign-in succeeded at app open');
 
-            // Try to sync existing data
             await this.syncLocalDataToSheets();
         };
 
-        // Request token with consent prompt for first-time users
-        AppState.tokenClient.requestAccessToken({ prompt: 'consent' });
-    },
-
-    // Verify saved token is still valid; refresh silently if expired
-    async verifyTokenAndRefresh() {
-        try {
-            // Make a lightweight call to verify token works
-            await gapi.client.sheets.spreadsheets.get({
-                spreadsheetId: CONFIG.SHEET_ID,
-                fields: 'spreadsheetId'
-            });
-            console.log('Token verified as valid');
-        } catch (error) {
-            console.log('Saved token invalid, attempting refresh');
-            this.handleExpiredToken();
-        }
+        AppState.tokenClient.requestAccessToken({ prompt: '' });
     },
 
     // Handle authentication
@@ -302,6 +318,7 @@ const SheetsAPI = {
             AppState.isAuthenticated = true;
             UI.updateAuthStatus(true);
             UI.setSyncStatus('synced');
+            UI.hideConnectPrompt();
 
             // Try to sync existing data
             await this.syncLocalDataToSheets();
@@ -344,7 +361,9 @@ const SheetsAPI = {
                     AppState.isAuthenticated = false;
                     UI.updateAuthStatus(false);
                     UI.setSyncStatus('offline');
-                    alert('Google Sheets connection lost. Your data is saved locally. Please reconnect when convenient.');
+                    // Surface this on the home screen rather than as a modal
+                    // alert, which would interrupt an in-progress workout.
+                    UI.showConnectPrompt();
                     return;
                 }
 
@@ -355,6 +374,7 @@ const SheetsAPI = {
                     AppState.isAuthenticated = true;
                     UI.updateAuthStatus(true);
                     UI.setSyncStatus('synced');
+                    UI.hideConnectPrompt();
                     console.log('Token refreshed successfully');
                 }
             };
@@ -368,7 +388,7 @@ const SheetsAPI = {
             AppState.isAuthenticated = false;
             UI.updateAuthStatus(false);
             UI.setSyncStatus('offline');
-            alert('Google Sheets connection lost. Your data is saved locally. Please reconnect when convenient.');
+            UI.showConnectPrompt();
         }
     },
 
@@ -1134,6 +1154,19 @@ const UI = {
     },
 
 
+    // Show/hide the home-screen connect prompt. This exists so that when
+    // silent renewal fails, the sign-in tap happens at app open instead of
+    // surfacing part-way through a workout.
+    showConnectPrompt() {
+        const banner = document.getElementById('connect-banner');
+        if (banner) banner.classList.remove('hidden');
+    },
+
+    hideConnectPrompt() {
+        const banner = document.getElementById('connect-banner');
+        if (banner) banner.classList.add('hidden');
+    },
+
     // Update auth status in UI
     updateAuthStatus(isAuthenticated) {
         const statusText = document.getElementById('auth-status-text');
@@ -1428,6 +1461,15 @@ const UI = {
 
         document.getElementById('skip-rest-btn').addEventListener('click', () => {
             this.stopRestTimer();
+        });
+
+        // Home screen connect banner (shown when silent sign-in was unavailable)
+        document.getElementById('connect-banner-btn').addEventListener('click', () => {
+            if (!AppState.gapiInited || !AppState.gisInited) {
+                alert('Google APIs are still loading. Please wait a moment and try again.');
+                return;
+            }
+            SheetsAPI.handleAuthClick();
         });
 
         // Settings
