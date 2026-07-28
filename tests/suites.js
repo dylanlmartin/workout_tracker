@@ -331,6 +331,135 @@ suite('previous performance', async ({ browser, baseUrl, t }) => {
 });
 
 // ---------------------------------------------------------------------------
+// Removing an exercise from a session
+// ---------------------------------------------------------------------------
+suite('remove exercise', async ({ browser, baseUrl, t }) => {
+    const page = await newAppPage(browser, baseUrl);
+    await startWorkout(page, 'upper_a');
+
+    const totalExercises = await page.evaluate(() => getWorkout('upper_a').exercises.length);
+
+    // Every exercise offers removal, not just ones with substitutions defined.
+    const buttons = await page.evaluate(() => document.querySelectorAll('.btn-remove-exercise').length);
+    t.equal(buttons, totalExercises, 'every exercise card offers a remove button');
+
+    const progressBefore = await page.evaluate(() => {
+        UI.updateWorkoutProgress();
+        return document.getElementById('workout-progress').textContent;
+    });
+
+    // Remove an untouched exercise.
+    await page.evaluate(() => WorkoutController.removeExercise(1));
+    const removed = await page.evaluate(() => {
+        const card = document.querySelector('[data-exercise-index="1"]');
+        return {
+            flagged: AppState.removedExercises[1] === true,
+            collapsed: card.classList.contains('removed'),
+            hasUndo: !!card.querySelector('.btn-restore-exercise'),
+            hasSetRows: card.querySelectorAll('.set-row').length,
+            persisted: Storage.getInProgressWorkout()?.removedExercises?.['1'] === true,
+            progress: document.getElementById('workout-progress').textContent
+        };
+    });
+    t.equal(removed.flagged, true, 'removing an exercise records it in state');
+    t.equal(removed.collapsed, true, 'a removed exercise collapses to a removed row');
+    t.equal(removed.hasUndo, true, 'a removed exercise offers an undo');
+    t.equal(removed.hasSetRows, 0, 'a removed exercise shows no set inputs');
+    t.equal(removed.persisted, true, 'the removal is persisted to localStorage');
+    // Without shrinking the denominator the workout could never read N/N.
+    t.equal(removed.progress, `0/${totalExercises - 1} exercises completed`,
+        'a removed exercise drops out of the progress denominator');
+    t.equal(progressBefore, `0/${totalExercises} exercises completed`,
+        'the denominator counted every exercise before removal');
+
+    // Undo puts it back, fully interactive.
+    await page.evaluate(() => WorkoutController.restoreExercise(1));
+    const restored = await page.evaluate(() => {
+        const card = document.querySelector('[data-exercise-index="1"]');
+        return {
+            flagged: AppState.removedExercises[1] === true,
+            collapsed: card.classList.contains('removed'),
+            setRows: card.querySelectorAll('.set-row').length,
+            persisted: Storage.getInProgressWorkout()?.removedExercises?.['1'] === true,
+            progress: document.getElementById('workout-progress').textContent
+        };
+    });
+    t.equal(restored.flagged, false, 'undo clears the removal from state');
+    t.equal(restored.collapsed, false, 'undo restores the full card');
+    t.ok(restored.setRows > 0, 'a restored exercise is interactive again', restored.setRows);
+    t.equal(restored.persisted, false, 'undo is persisted to localStorage');
+    t.equal(restored.progress, `0/${totalExercises} exercises completed`,
+        'undo puts the exercise back into the denominator');
+
+    await page.close();
+});
+
+suite('remove exercise with recorded sets', async ({ browser, baseUrl, t }) => {
+    const page = await newAppPage(browser, baseUrl);
+    await startWorkout(page, 'upper_a');
+    await completeRepsSet(page, 0, 1, 10, 50);
+
+    // Declining the confirmation must leave everything untouched.
+    await page.evaluate(() => { window.__confirmReply = false; });
+    await page.evaluate(() => WorkoutController.removeExercise(0));
+    const declined = await page.evaluate(() => ({
+        flagged: AppState.removedExercises[0] === true,
+        sets: AppState.workoutData[0].sets.length,
+        asked: window.__confirms.length
+    }));
+    t.ok(declined.asked > 0, 'removing an exercise with recorded sets asks first');
+    t.equal(declined.flagged, false, 'declining the prompt leaves the exercise in place');
+    t.equal(declined.sets, 1, 'declining the prompt keeps the recorded sets');
+
+    // Accepting discards the local sets so they cannot reach the workout log.
+    await page.evaluate(() => { window.__confirmReply = true; });
+    await page.evaluate(() => WorkoutController.removeExercise(0));
+    const accepted = await page.evaluate(() => ({
+        flagged: AppState.removedExercises[0] === true,
+        sets: AppState.workoutData[0].sets.length,
+        persistedSets: (Storage.getInProgressWorkout()?.exercises?.[0]?.sets || []).length
+    }));
+    t.equal(accepted.flagged, true, 'accepting the prompt removes the exercise');
+    t.equal(accepted.sets, 0, 'accepting discards its recorded sets');
+    t.equal(accepted.persistedSets, 0, 'the discarded sets are cleared from localStorage too');
+
+    await page.close();
+});
+
+suite('removals survive restore', async ({ browser, baseUrl, t }) => {
+    const seed = function () {
+        localStorage.setItem('workout_tracker_in_progress', JSON.stringify({
+            workoutType: 'upper_a',
+            isOptional: false,
+            startTime: Date.now() - 60000,
+            lastSaved: Date.now(),
+            substitutions: {},
+            removedExercises: { 1: true },
+            exercises: [
+                { name: 'Neutral-Grip DB Floor Press', rest: 120, sets: [] },
+                { name: 'Barbell Row', rest: 120, sets: [] }
+            ]
+        }));
+    };
+    const page = await newAppPage(browser, baseUrl, { seedLocalStorage: seed, confirmReply: true });
+    await page.reload();
+    await page.waitForFunction(() => typeof AppState !== 'undefined');
+    await page.waitForTimeout(300);
+
+    const state = await page.evaluate(() => {
+        const card = document.querySelector('[data-exercise-index="1"]');
+        return {
+            flagged: AppState.removedExercises[1] === true,
+            collapsed: card ? card.classList.contains('removed') : null
+        };
+    });
+    t.equal(state.flagged, true, 'a removal is restored with the workout');
+    t.equal(state.collapsed, true, 'a restored removal still renders collapsed');
+
+    await page.close();
+});
+
+// ---------------------------------------------------------------------------
 // Restoring an in-progress workout
 // ---------------------------------------------------------------------------
 suite('restore in-progress', async ({ browser, baseUrl, t }) => {
