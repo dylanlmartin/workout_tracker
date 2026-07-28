@@ -786,6 +786,218 @@ function hasSubstitutions(exerciseName) {
 }
 
 /**
+ * Form cues for substitute exercises.
+ *
+ * When an exercise is swapped, the card must show cues for the movement
+ * actually being performed - the original's cues are at best irrelevant and at
+ * worst unsafe (e.g. "keep hips elevated" on a movement that has no hips
+ * involved). Keys are matched case-insensitively, so variants that differ only
+ * in capitalisation share one entry.
+ *
+ * Pressing entries preserve the programme's costochondritis constraint:
+ * neutral grip, no wide-grip or full-range barbell pressing.
+ */
+const EXERCISE_INSTRUCTIONS = {
+    // --- Pressing (chest-safe) ---
+    'neutral-grip db press on low incline (15-30°)': 'Keep palms facing each other and elbows at ~45°. Set a low incline only. Stop before the sternum feels stretched.',
+    'neutral-grip db press on flat bench (limited rom)': 'Neutral grip throughout. Stop the descent early - do not let the elbows drop below the torso.',
+    'landmine press': 'Neutral grip, press up and slightly forward. Keep ribs down and core braced. Easier on the sternum than a flat press.',
+    'light db press (higher reps)': 'Neutral grip, lighter load, higher reps. Control the negative rather than chasing weight.',
+    'light db incline press': 'Neutral grip on a low incline. Keep shoulder blades retracted and stop short of a sternum stretch.',
+    'machine press (neutral grip if available)': 'Use a neutral-grip handle if the machine has one. Set the seat so the handles sit at mid-chest.',
+    'machine press (incline, neutral grip)': 'Neutral grip, incline path. Keep shoulder blades set against the pad.',
+    'low cable crossover': 'Pull from low to high with a slight elbow bend. Squeeze at the top without letting the shoulders roll forward.',
+    'high cable crossover': 'Pull from high to low with a slight elbow bend. Keep the chest tall and shoulders back.',
+    'resistance band press (decline angle)': 'Anchor the band high and press down and across. Control the return - do not let the band snap back.',
+    'resistance band press (incline angle)': 'Anchor the band low and press up and across. Keep tension constant through the full range.',
+    'close-grip bench press': 'Hands shoulder-width, elbows tucked close to the ribs. Stop if the sternum complains.',
+    'elevated push-ups (limited rom)': 'Hands on a bench or counter. Elbows tucked at ~45°, body in one line. Limited range protects the chest.',
+    'decline push-ups': 'Feet elevated, hands under the shoulders. Elbows tucked, ribs down, stop before the chest touches.',
+    'close-grip push-ups': 'Hands under the shoulders, elbows brushing the ribs. Keep the body in one straight line.',
+    'diamond push-ups (myo-reps)': 'Index fingers and thumbs together under the chest. Elbows stay tight. Activation set to near failure, then mini-sets with 15s rest.',
+    'pike push-ups': 'Hips high, head between the hands, press overhead rather than forward. Keeps load off the sternum.',
+
+    // --- Rows and pulls ---
+    'pendlay row': 'Bar resets on the floor each rep. Flat back, explosive pull to the lower chest.',
+    'chest-supported db row': 'Chest stays on the pad. Lead with the elbows and squeeze the shoulder blades together.',
+    'chest-supported row': 'Chest stays on the pad so the lower back is not doing the work. Lead with the elbows.',
+    't-bar row': 'Neutral spine, chest up. Pull to the upper abdomen and control the negative.',
+    'seal row': 'Chest flat on the bench throughout. No body English - the back does all the work.',
+    'seated cable row': 'Tall torso, no rocking. Pull to the navel and squeeze the shoulder blades.',
+    'single-arm cable row': 'Square the hips. Pull the elbow past the ribs without rotating the torso.',
+    'db bent-over row': 'Hinge at the hips with a flat back. Pull the dumbbell to the hip, not the shoulder.',
+    'inverted rows (under table)': 'Body in one straight line, heels on the floor. Pull the chest to the edge and squeeze the blades.',
+    'towel rows': 'Loop a towel around a fixed anchor. Lean back, pull the chest toward the hands, control the return.',
+    'lat pulldown (any machine)': 'Chest tall, pull the bar to the collarbone. Avoid leaning back to move more weight.',
+    'pull-ups or chin-ups': 'Full hang at the bottom, chest toward the bar at the top. Control the lowering.',
+    'assisted pull-ups': 'Use the machine or a band for the minimum help needed. Full range beats partial reps.',
+    'single-arm cable pulldown': 'One side at a time, torso square. Drive the elbow down toward the hip.',
+    'wide-grip cable row to face': 'Pull toward the face with high elbows. Prioritise the rear delts and mid-back.',
+
+    // --- Squat pattern ---
+    'safety bar squat (reduced thoracic stress)': 'Yoke sits on the traps, hands light on the handles. Chest up, knees tracking over the toes.',
+    'goblet squat (lighter load, good for hypertrophy)': 'Hold the weight at the chest. Elbows inside the knees at the bottom, chest tall throughout.',
+    'goblet squat (lighter, higher reps)': 'Weight at the chest, higher reps. Control the descent and keep the torso upright.',
+    'hack squat machine': 'Back flat on the pad, feet mid-platform. Descend to at least parallel under control.',
+    'leg press (not ideal, but acceptable)': 'Do not let the lower back round off the pad at the bottom. Stop the descent before the hips tuck.',
+    'leg press (quad-focused)': 'Feet low and narrow on the platform. Keep the lower back flat against the pad.',
+    'pistol squats (assisted)': 'Hold a support for balance. Lower slowly on one leg, keeping the heel down.',
+    'sissy squats': 'Knees travel forward, hips stay extended. Hold support and move slowly - hard on the knees if rushed.',
+
+    // --- Single-leg ---
+    'rear foot elevated split squat with support': 'Hold a rail for balance. Rear foot on the bench, drop the back knee straight down.',
+    'regular split squat (both feet on ground)': 'Both feet planted, staggered stance. Drop straight down rather than leaning forward.',
+    'single-leg leg press': 'One leg at a time, foot centred on the platform. Keep the hips square.',
+    'bulgarian split squats (bodyweight)': 'Rear foot on a chair, front shin near vertical. Drop the back knee straight down.',
+    'stationary lunges': 'Feet staggered and planted. Drop the back knee toward the floor, torso upright.',
+    'reverse lunges': 'Step backwards, not forwards - easier on the knees. Keep the front shin vertical.',
+    'walking lunges': 'Long step, back knee toward the floor. Torso upright, push through the front heel.',
+    'walking lunges (bodyweight)': 'Long step, back knee toward the floor. Torso upright throughout.',
+    'split squats': 'Staggered stance, both feet planted. Vertical torso, controlled descent.',
+    'db step-ups': 'Full foot on the box. Drive through the top-leg heel and avoid pushing off the trailing toe.',
+    'step-ups': 'Full foot on the box. Drive through the heel and control the way down.',
+
+    // --- Hinge ---
+    'romanian deadlift': 'Hinge at the hips with a soft knee. Bar close to the legs, stretch felt in the hamstrings not the lower back.',
+    'dumbbell rdl (easier to control)': 'Hinge at the hips, dumbbells tracking close to the legs. Neutral spine throughout.',
+    'single-leg rdl': 'Hinge on one leg, hips square to the floor. Lighter load - balance is the limiting factor.',
+    'single-leg rdl (lighter load, unilateral work)': 'Hinge on one leg with the hips square. Go light and prioritise control.',
+    'single-leg rdl (bodyweight)': 'Hinge on one leg, hips square, back flat. Move slowly and hold the end position.',
+    'stiff-leg deadlift': 'Minimal knee bend, hips travel back. Stop when the hamstrings limit the range, not when the back rounds.',
+    'dumbbell stiff-leg deadlift': 'Near-straight legs, hips back. Keep the dumbbells close and the spine neutral.',
+    'back extension': 'Squeeze the glutes to raise the torso. Stop at a straight line - do not hyperextend.',
+    'back extension with good morning pattern': 'Hinge and return to a straight line. Glutes finish the movement, not the lower back.',
+    'good mornings (bodyweight)': 'Hands at the temples, hinge at the hips with a flat back. Feel the hamstrings, not the spine.',
+
+    // --- Hamstring curls ---
+    'eccentric-only nordic curls (just the lowering)': 'Lower as slowly as possible, then use the hands to push back up. The lowering is the whole exercise.',
+    'band-assisted nordic curls': 'Band anchored overhead to take some load. Control the descent, resist all the way down.',
+    'lying leg curl with slow eccentric (5-second negative)': 'Curl up normally, then take a full five seconds to lower.',
+    'nordic curls (eccentric)': 'Anchor the ankles, lower under control as far as possible, push back with the hands.',
+    'glute-ham raise (easier variation)': 'Control the descent, keep the hips extended. Do not turn it into a hip hinge.',
+    'seated leg curl': 'Torso against the back pad. Curl fully and control the return.',
+    'lying leg curl': 'Hips flat on the pad. Curl fully without lifting the hips.',
+    'single-leg curl': 'One leg at a time to even out any imbalance. Same range on both sides.',
+
+    // --- Quads ---
+    'single-leg extension': 'One leg at a time. Pause briefly at the top and lower under control.',
+
+    // --- Overhead and delts ---
+    'arnold press (partial rotation)': 'Start palms-in and rotate only partway. Stop if the shoulder or sternum complains.',
+    'machine shoulder press': 'Seat set so the handles start at shoulder height. Ribs down, no lower-back arch.',
+    'seated db press': 'Back against the pad, neutral or slightly angled grip. Do not flare the ribs.',
+    'cable lateral raise': 'Lead with the elbow, raise to shoulder height only. Constant tension through the range.',
+    'machine lateral raise': 'Pads against the outside of the arms. Raise to shoulder height, lower slowly.',
+    'single-arm db lateral raise': 'One side at a time, no torso swing. Raise to shoulder height with a soft elbow.',
+    'band lateral raises': 'Stand on the band, lead with the elbows to shoulder height. Control the return.',
+    'upright row (wide grip)': 'Wide grip and stop at chest height. Drop it if the shoulder pinches.',
+    'prone y-raises': 'Face down, thumbs up, raise the arms into a Y. Light and slow - this is for the lower traps.',
+
+    // --- Rear delts / upper back ---
+    'cable reverse fly': 'Cables crossed, slight elbow bend. Open the arms wide and squeeze the rear delts.',
+    'reverse cable fly': 'Slight elbow bend, open wide. Keep the traps relaxed and let the rear delts work.',
+    'machine reverse fly': 'Chest on the pad, slight elbow bend. Squeeze the shoulder blades at the end range.',
+    'bent-over cable fly': 'Hinge forward, arms sweeping wide. Avoid turning it into a row.',
+    'prone db reverse fly': 'Face down on an incline bench. Light weight, wide arc, no swinging.',
+    'db reverse fly': 'Hinge forward with a flat back. Slight elbow bend, squeeze the shoulder blades.',
+    'band face pulls': 'Pull toward the face with high elbows. Finish with the hands beside the ears.',
+
+    // --- Biceps ---
+    'standard bicep curls (straight sets)': 'Elbows pinned at the sides. No swinging - control both directions.',
+    'ez-bar curls': 'Angled grip is easier on the wrists. Keep the elbows still.',
+    'cable curls': 'Constant tension throughout. Elbows stay at the sides.',
+    'hammer curls': 'Neutral grip, thumbs up. Elbows pinned - this hits the brachialis and forearms.',
+    'cable hammer curls': 'Rope attachment, neutral grip. Squeeze at the top without moving the elbows.',
+    'cross-body hammer curls': 'Curl across the body toward the opposite shoulder. Neutral grip throughout.',
+    'rope cable curls': 'Neutral grip on the rope, elbows fixed. Spread the rope slightly at the top.',
+    'neutral-grip db curls': 'Palms facing in throughout. Elbows stay at the sides.',
+    'backpack curls': 'Load a backpack and curl it with both hands. Slow tempo compensates for the light load.',
+    'towel curls (myo-reps)': 'Loop a towel under the feet and curl against your own resistance. Activation set to near failure, then mini-sets with 15s rest.',
+
+    // --- Triceps ---
+    'standard tricep pushdowns (straight sets)': 'Elbows pinned at the sides. Full extension without leaning into the bar.',
+    'overhead cable extension': 'Elbows stay high and close to the head. Stretch at the bottom, full lockout at the top.',
+    'db overhead extension': 'Elbows point forward and stay put. Lower behind the head under control.',
+    'rope pushdowns': 'Spread the rope at the bottom for a full contraction. Elbows fixed at the sides.',
+    'v-bar pushdowns': 'Elbows tight to the ribs. Press to full extension and control the return.',
+    'single-arm pushdowns': 'One side at a time, torso square. Keeps both arms honest.',
+
+    // --- Calves ---
+    'single-leg calf raise': 'Full stretch at the bottom, full squeeze at the top. Hold something for balance.',
+    'calf raise on leg press': 'Push through the balls of the feet with a slight knee bend. Full range both ways.',
+    'smith machine calf raise': 'Balls of the feet on a block. Pause at the top and stretch at the bottom.',
+    'seated calf raise (different emphasis)': 'Bent knee shifts the work to the soleus. Slow tempo, full range.',
+    'standing calf raise (different emphasis)': 'Straight knee targets the gastrocnemius. Full stretch at the bottom.',
+    'single-leg seated calf raise': 'One leg at a time with a bent knee. Match the range on both sides.',
+    'leg press calf raise': 'Balls of the feet on the platform edge. Full stretch, full squeeze, no bouncing.',
+    'seated single-leg calf raise': 'Bent knee, one leg at a time. Slow and full range.',
+
+    // --- Core: anti-rotation ---
+    'cable woodchops': 'Rotate through the mid-back, not the lower back. Arms stay relatively straight.',
+    'pallof press': 'Press straight out and resist the pull to rotate. Ribs down, glutes tight.',
+    'half-kneeling pallof press': 'Half-kneeling narrows the base and raises the anti-rotation demand. Stay square.',
+    'anti-rotation band holds': 'Hold the press-out position and resist rotation. Breathe throughout the hold.',
+    'suitcase carries': 'Load one side only, walk tall without leaning. Ribs down, shoulders level.',
+    'band anti-rotation press': 'Anchor the band at chest height, press out and resist the twist.',
+    'band woodchops': 'Rotate through the mid-back. Control the return rather than letting the band pull you.',
+    'russian twists': 'Rotate from the ribcage with a tall spine. Slow down if the lower back takes over.',
+    'medicine ball chops': 'Rotate through the trunk with the arms long. Keep the hips relatively stable.',
+    'landmine rotations': 'Rotate the bar in an arc, pivoting the back foot. Move from the trunk, not the arms.',
+
+    // --- Core: anti-extension ---
+    'dead bug': 'Lower back stays pressed into the floor. Extend the opposite arm and leg slowly, breathing throughout.',
+    'modified dead bug (single leg)': 'One limb at a time. Lower back stays flat against the floor the whole time.',
+    'bird dog': 'Extend the opposite arm and leg without letting the hips tilt. Hold briefly at the top.',
+    'bird dog (easier)': 'Opposite arm and leg, hips level. Move slowly and pause at the top.',
+    'modified bird dog (arm or leg only)': 'Move one limb at a time. Keep the hips square and the spine neutral.',
+    'quadruped hold': 'Hands under shoulders, knees under hips, hover the knees an inch off the floor. Brace and breathe.',
+    'hollow body hold': 'Lower back pinned to the floor, ribs down. Shorten the lever if the back arches.',
+    'superman hold': 'Lift the chest and thighs slightly. Aim for a gentle contraction, not maximum extension.',
+    'plank': 'Straight line from head to heels. Brace the abs and breathe - do not hold your breath.',
+    'plank from knees': 'Knees down, straight line from head to knees. Same bracing, less load.',
+    'rkc plank (max tension)': 'Short hold at maximum tension. Squeeze glutes, quads and abs hard throughout.',
+    'plank with arm/leg lift': 'Lift one limb without letting the hips rotate. Slow and deliberate.',
+    'plank on stability ball': 'Forearms on the ball. Resist the wobble without letting the hips sag.',
+    'plank variations': 'Straight line from head to heels. Brace the abs and keep breathing.',
+
+    // --- Core: lateral ---
+    'side plank from knees': 'Knees bent, straight line from head to knees. Push the bottom hip up.',
+    'side plank with rotation': 'From the side plank, rotate the top arm under the body and back. Hips stay high.',
+    'side plank': 'Hips elevated, straight line from head to feet. Do not let the bottom hip sag.',
+    'side-lying hip abduction': 'Lie on your side and raise the top leg. Keep the toes pointing forward, not up.',
+    'copenhagen plank (advanced)': 'Top leg on the bench, hips lifted. Start with a bent bottom leg - this is demanding on the adductors.',
+
+    // --- Core: hip flexion ---
+    "captain's chair knee raise": 'Back against the pad. Curl the pelvis up rather than just swinging the legs.',
+    'lying leg raise': 'Lower back stays on the floor. Reduce the range if it starts to arch.',
+    'lying leg raises': 'Lower back stays pressed down. Lower the legs only as far as you can hold that.',
+    'reverse crunches': 'Curl the hips off the floor. Small controlled range beats momentum.',
+    'decline sit-ups': 'Curl up one vertebra at a time. Stop if it pulls on the lower back.',
+
+    // --- Conditioning ---
+    'rowing machine intervals (10x30s/30s)': 'Ten rounds: 30s hard, 30s easy. Drive with the legs first, then the back and arms.',
+    'assault bike': 'Ten rounds: 30s hard, 30s easy. Push with the arms as well as the legs.',
+    'ski erg': 'Ten rounds: 30s hard, 30s easy. Hinge at the hips and drive down through the lats.',
+    'treadmill sprints (if no knee issues)': 'Ten rounds: 30s hard, 30s easy. Skip this if the knees object.',
+    'hiit burpees (10x30s/30s)': 'Ten rounds: 30s work, 30s rest. Step back rather than jumping if the chest complains.',
+    'incline treadmill walk': 'Zone 2 - a conversational pace. Raise the incline rather than the speed.',
+    'elliptical': 'Zone 2 - steady and conversational. Keep the effort easy enough to talk.',
+    'swimming': 'Zone 2 - steady laps at a conversational effort.',
+    'rowing machine (lower intensity)': 'Zone 2 - steady pace, legs first. Easy enough to hold a conversation.',
+    'steady-state cardio (running/jump rope)': 'Zone 2 - a conversational pace throughout.'
+};
+
+/**
+ * Look up form cues for an exercise by name.
+ * Matching is case-insensitive so option lists and bodyweight substitutions
+ * that differ only in capitalisation resolve to the same entry.
+ */
+function getExerciseInstructions(exerciseName) {
+    if (!exerciseName) return null;
+    return EXERCISE_INSTRUCTIONS[String(exerciseName).toLowerCase().trim()] || null;
+}
+
+/**
  * Bodyweight Substitutions
  * Based on workout-tracker-spec.md Bodyweight Substitutions section
  * Maps gym exercises to bodyweight alternatives for home/travel workouts

@@ -25,6 +25,7 @@ const AppState = {
     sheetId: null,
     activeExerciseIndex: null,
     substitutions: {}, // Tracks exercise substitutions {exerciseIndex: substitutedName}
+    removedExercises: {}, // Exercises dropped from this session {exerciseIndex: true}
     currentSubstitutionExercise: null, // Currently viewing substitutions for this exercise
     bodyweightMode: false, // Bodyweight mode enabled/disabled
     isOptionalWorkout: false // Track if current workout is optional
@@ -49,6 +50,7 @@ const Storage = {
             startTime: AppState.workoutStartTime,
             exercises: AppState.workoutData,
             substitutions: AppState.substitutions,
+            removedExercises: AppState.removedExercises,
             lastSaved: Date.now()
         };
         localStorage.setItem(this.KEYS.IN_PROGRESS_WORKOUT, JSON.stringify(inProgressWorkout));
@@ -194,6 +196,25 @@ const Storage = {
         window.URL.revokeObjectURL(url);
     }
 };
+
+// ==================== HTML ESCAPING ====================
+
+/**
+ * Escape text before interpolating it into innerHTML.
+ *
+ * Custom substitution names are free text typed by the user, so a name
+ * containing a quote (`Dumbbell "Hex" Press`) or an angle bracket would
+ * otherwise break out of the surrounding attribute or element.
+ */
+function escapeHtml(value) {
+    if (value === null || value === undefined) return '';
+    return String(value)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
 
 // ==================== EXERCISE NAME RESOLUTION ====================
 
@@ -632,8 +653,16 @@ const SheetsAPI = {
     calculateTotalVolume(workout) {
         let volume = 0;
         workout.exercises.forEach(exercise => {
-            exercise.sets.forEach(set => {
-                volume += set.reps * set.weight;
+            (exercise.sets || []).forEach(set => {
+                // Duration sets store reps as "45s" and completion sets as
+                // "Completed". Multiplying those yields NaN, and a single NaN
+                // used to poison the whole total - which reached the Sheets
+                // summary as a blank Total Volume cell. Such sets carry no
+                // load, so they contribute nothing.
+                const reps = parseFloat(set.reps);
+                const weight = parseFloat(set.weight);
+                if (!Number.isFinite(reps) || !Number.isFinite(weight)) return;
+                volume += reps * weight;
             });
         });
         return volume;
@@ -834,6 +863,9 @@ const UI = {
 
         // Replace old card with new card
         oldCard.replaceWith(newCard);
+
+        // Sets already recorded must stay visibly complete on the new card.
+        this.applyCompletedState(exerciseIndex);
     },
 
     // Create an exercise card element
@@ -852,15 +884,35 @@ const UI = {
             card.classList.add('substituted');
         }
 
+        // A removed exercise collapses to a single line so the removal stays
+        // visible and reversible, rather than the exercise vanishing with no
+        // way back short of restarting the workout.
+        if (AppState.removedExercises[exerciseIndex]) {
+            card.classList.add('removed');
+            card.innerHTML = `
+                <div class="removed-exercise">
+                    <span class="removed-exercise-name">${escapeHtml(displayName)}</span>
+                    <button class="btn-restore-exercise" data-exercise-index="${exerciseIndex}">Undo</button>
+                </div>
+            `;
+            card.querySelector('.btn-restore-exercise').addEventListener('click', () => {
+                WorkoutController.restoreExercise(exerciseIndex);
+            });
+            return card;
+        }
+
         // Get the actual exercise definition (substituted or original)
         let actualExercise = exercise;
         if (isSubstituted) {
-            // Look up the substitution details to get notes
-            const subs = getSubstitutions(exercise.name);
+            // Show cues for the movement actually being performed. The
+            // original's cues can be irrelevant or unsafe for the substitute
+            // (e.g. "keep hips elevated" on a movement with no hips involved),
+            // so never fall back to them. A custom name has no cues on file,
+            // in which case the card simply shows none.
             actualExercise = {
                 ...exercise,
                 name: substitutedName,
-                notes: subs?.notes || exercise.notes
+                notes: getExerciseInstructions(substitutedName)
             };
         }
 
@@ -872,7 +924,7 @@ const UI = {
             .find(e => performedExerciseName(e) === lookupName);
 
         let html = '<div class="exercise-header">';
-        html += `<h3>${displayName}</h3>`;
+        html += `<h3>${escapeHtml(displayName)}</h3>`;
         if (actualExercise.category || exercise.category) {
             const category = actualExercise.category || exercise.category;
             html += `<span class="exercise-badge ${category}">${category}</span>`;
@@ -889,12 +941,18 @@ const UI = {
             html += `<div class="exercise-notes">${actualExercise.notes}</div>`;
         }
 
-        // Substitution button (only show if substitutions are available)
+        // Exercise actions. Removal is offered for every exercise; the
+        // substitution button only where alternatives are defined.
+        html += '<div class="exercise-actions">';
         if (hasSubstitutions(exercise.name)) {
             html += `<button class="btn-substitute" data-exercise-index="${exerciseIndex}">
                         ↔️ Substitute Exercise
                     </button>`;
         }
+        html += `<button class="btn-remove-exercise" data-exercise-index="${exerciseIndex}">
+                    ✕ Remove
+                 </button>`;
+        html += '</div>';
 
         // Previous performance
         if (previousExercise) {
@@ -1062,7 +1120,82 @@ const UI = {
             });
         }
 
+        const removeBtn = card.querySelector('.btn-remove-exercise');
+        if (removeBtn) {
+            removeBtn.addEventListener('click', () => {
+                WorkoutController.removeExercise(exerciseIndex);
+            });
+        }
+
         return card;
+    },
+
+    /**
+     * Re-apply recorded sets to a freshly rendered card.
+     *
+     * Used both when restoring an in-progress workout and after a card is
+     * rebuilt (e.g. a substitution). Without it a rebuilt card looks untouched
+     * while the sets are still in state, which invites re-entry and appends
+     * duplicate rows to the Sheets log.
+     */
+    applyCompletedState(exerciseIndex) {
+        const card = document.querySelector(`[data-exercise-index="${exerciseIndex}"]`);
+        const exerciseData = AppState.workoutData[exerciseIndex];
+        if (!card || !exerciseData || !exerciseData.sets || exerciseData.sets.length === 0) return;
+
+        const workout = AppState.isOptionalWorkout
+            ? getOptionalWorkout(AppState.currentWorkout)
+            : getWorkout(AppState.currentWorkout);
+        const exerciseDef = workout?.exercises?.[exerciseIndex];
+        if (!exerciseDef) return;
+
+        // Substitutions change the name, not the exercise type, so the
+        // original definition is the right source for type detection.
+        const exerciseType = exerciseDef.exerciseType || 'reps';
+
+        if (exerciseType === 'duration') {
+            exerciseData.sets.forEach(set => {
+                const setRow = card.querySelector(`.duration-set-row[data-set="${set.setNumber}"]`);
+                if (!setRow) return;
+                const checkbox = setRow.querySelector('.set-checkbox');
+                const durationInput = setRow.querySelector('.duration-input');
+                if (checkbox) checkbox.checked = true;
+                if (durationInput) {
+                    // String() because a legacy record may hold a raw number
+                    durationInput.value = String(set.reps).replace(/[^\d.]/g, '');
+                    durationInput.disabled = true;
+                }
+                setRow.classList.add('completed');
+            });
+        } else if (exerciseType === 'completion') {
+            const checkbox = card.querySelector('.completion-checkbox');
+            if (exerciseData.sets[0] && checkbox) {
+                checkbox.checked = true;
+                checkbox.disabled = true;
+            }
+        } else {
+            exerciseData.sets.forEach(set => {
+                const setRow = card.querySelector(`.set-row[data-set="${set.setNumber}"]`);
+                if (!setRow) return;
+                const checkbox = setRow.querySelector('.set-checkbox');
+                const repsInput = setRow.querySelector('.reps-input');
+                const weightInput = setRow.querySelector('.weight-input');
+                if (checkbox) checkbox.checked = true;
+                if (repsInput) {
+                    repsInput.value = set.reps;
+                    repsInput.disabled = true;
+                }
+                if (weightInput) {
+                    weightInput.value = set.weight;
+                    weightInput.disabled = true;
+                }
+                setRow.classList.add('completed');
+            });
+        }
+
+        if (exerciseData.sets.length === exerciseDef.sets) {
+            card.classList.add('completed');
+        }
     },
 
     // Update exercise card completion status
@@ -1088,16 +1221,37 @@ const UI = {
         const workout = AppState.isOptionalWorkout
             ? getOptionalWorkout(AppState.currentWorkout)
             : getWorkout(AppState.currentWorkout);
-        const completedExercises = AppState.workoutData.filter(e =>
-            e.sets.length === workout.exercises.find(ex => ex.name === e.name).sets
-        ).length;
+        if (!workout) return;
+
+        // Count by index rather than by name: names are not unique once an
+        // exercise is substituted, and a name that matches nothing used to
+        // throw here. Removed exercises drop out of both halves of the
+        // fraction, so the workout can still reach N/N.
+        let total = 0;
+        let completed = 0;
+        workout.exercises.forEach((exerciseDef, index) => {
+            if (AppState.removedExercises[index]) return;
+            total++;
+            const data = AppState.workoutData[index];
+            if (data && data.sets.length >= exerciseDef.sets) completed++;
+        });
 
         document.getElementById('workout-progress').textContent =
-            `${completedExercises}/${workout.exercises.length} exercises completed`;
+            `${completed}/${total} exercises completed`;
     },
 
     // Start rest timer (timestamp-based for background accuracy)
     startRestTimer(duration) {
+        // Some exercises are prescribed with no rest at all (cardio, mobility
+        // work). Starting a zero-length countdown would flash the timer and
+        // then immediately fire a "Rest Complete" notification. Guarding here
+        // rather than at each call site keeps all three exercise types
+        // consistent.
+        if (!Number.isFinite(duration) || duration <= 0) {
+            this.stopRestTimer();
+            return;
+        }
+
         // CRITICAL: Clear any existing timer first to prevent multiple intervals
         if (AppState.timerInterval) {
             clearInterval(AppState.timerInterval);
@@ -1146,8 +1300,12 @@ const UI = {
 
         document.getElementById('timer-countdown').textContent = display;
 
-        // Update progress bar
-        const percentage = ((AppState.totalRestTime - AppState.remainingTime) / AppState.totalRestTime) * 100;
+        // Update progress bar. Guard the divide so a zero total can never
+        // write "NaN%" into the style.
+        const total = AppState.totalRestTime;
+        const percentage = total > 0
+            ? ((total - AppState.remainingTime) / total) * 100
+            : 0;
         document.getElementById('timer-progress-bar').style.width = `${percentage}%`;
     },
 
@@ -1339,7 +1497,7 @@ const UI = {
                 const date = new Date(workout.date).toLocaleDateString();
                 return `
                     <div class="history-item">
-                        <h3>${workout.workoutName}</h3>
+                        <h3>${escapeHtml(workout.workoutName)}</h3>
                         <div class="date">${date}</div>
                         <div class="summary">
                             ${workout.exerciseCount} exercises •
@@ -1353,13 +1511,16 @@ const UI = {
             // From localStorage - need to calculate from workout data
             historyList.innerHTML = workouts.map(workout => {
                 const date = new Date(workout.date).toLocaleDateString();
+                // A workout type can disappear from data.js; fall back to the
+                // stored id rather than throwing and blanking the whole view.
                 const workoutInfo = getWorkout(workout.workoutType) || getOptionalWorkout(workout.workoutType);
-                const duration = Math.round(workout.duration / 60);
+                const workoutName = workoutInfo?.name || workout.workoutType;
+                const duration = Math.round((workout.duration || 0) / 60);
                 const volume = SheetsAPI.calculateTotalVolume(workout);
 
                 return `
                     <div class="history-item">
-                        <h3>${workoutInfo.name}</h3>
+                        <h3>${escapeHtml(workoutName)}</h3>
                         <div class="date">${date}</div>
                         <div class="summary">
                             ${workout.exercises.length} exercises •
@@ -1574,7 +1735,7 @@ const SubstitutionController = {
 
         // Show original exercise
         const currentSubstitution = AppState.substitutions[exerciseIndex];
-        originalExerciseDiv.innerHTML = `<strong>Original:</strong> ${originalExerciseName}${currentSubstitution ? `<br><strong>Current:</strong> ${currentSubstitution}` : ''}`;
+        originalExerciseDiv.innerHTML = `<strong>Original:</strong> ${escapeHtml(originalExerciseName)}${currentSubstitution ? `<br><strong>Current:</strong> ${escapeHtml(currentSubstitution)}` : ''}`;
 
         // Show notes if available
         if (substitutions.notes) {
@@ -1600,10 +1761,10 @@ const SubstitutionController = {
             <label class="substitution-option">
                 <input type="radio"
                        name="substitution"
-                       value="${option}"
+                       value="${escapeHtml(option)}"
                        data-index="${index}"
                        ${currentSubstitution === option ? 'checked' : ''}>
-                <span class="substitution-option-text">${option}</span>
+                <span class="substitution-option-text">${escapeHtml(option)}</span>
             </label>
         `).join('') + `
             <label class="substitution-option">
@@ -1618,7 +1779,7 @@ const SubstitutionController = {
                 <input type="text"
                        id="custom-exercise-name"
                        placeholder="Enter exercise name..."
-                       value="${currentSubstitution && !substitutions.options.includes(currentSubstitution) ? currentSubstitution : ''}">
+                       value="${escapeHtml(currentSubstitution && !substitutions.options.includes(currentSubstitution) ? currentSubstitution : '')}">
             </div>
         `;
 
@@ -1712,6 +1873,7 @@ const WorkoutController = {
         AppState.workoutData = [];
         AppState.workoutStartTime = Date.now();
         AppState.substitutions = {}; // Clear any previous substitutions
+        AppState.removedExercises = {}; // Clear any previous removals
         AppState.isOptionalWorkout = isOptional; // Track if this is an optional workout
 
         // Get workout from appropriate source
@@ -1764,10 +1926,16 @@ const WorkoutController = {
             const exerciseData = AppState.workoutData[exerciseIndex];
             exerciseData.sets = exerciseData.sets.filter(s => s.setNumber !== setNumber);
             setRow.classList.remove('completed');
+            card.classList.remove('completed');
 
             // Enable inputs
             repsInput.disabled = false;
             weightInput.disabled = false;
+
+            // Persist the removal, otherwise reopening the app restores the
+            // set as completed. The duration path already did this.
+            Storage.saveInProgressWorkout();
+            UI.updateWorkoutProgress();
             return;
         }
 
@@ -1832,6 +2000,42 @@ const WorkoutController = {
 
         // Start rest timer
         UI.startRestTimer(exercise.rest);
+    },
+
+    /**
+     * Drop an exercise from this session.
+     *
+     * The exercise stays in the list as a collapsed row so the removal is
+     * visible and reversible. Any sets already recorded are discarded from the
+     * local log; rows already sent to Google Sheets cannot be withdrawn, so the
+     * confirmation says so rather than implying a clean undo.
+     */
+    removeExercise(exerciseIndex) {
+        const exerciseData = AppState.workoutData[exerciseIndex];
+        const recordedSets = exerciseData?.sets?.length || 0;
+
+        if (recordedSets > 0) {
+            const warning = AppState.isAuthenticated
+                ? `This exercise has ${recordedSets} completed set(s).\n\nRemoving it discards them from this workout. Sets already sent to Google Sheets stay in the log and would need removing there.\n\nRemove anyway?`
+                : `This exercise has ${recordedSets} completed set(s).\n\nRemoving it discards them from this workout.\n\nRemove anyway?`;
+            if (!confirm(warning)) return;
+            exerciseData.sets = [];
+        }
+
+        AppState.removedExercises[exerciseIndex] = true;
+        Storage.saveInProgressWorkout();
+
+        UI.updateSingleExerciseCard(exerciseIndex, false);
+        UI.updateWorkoutProgress();
+    },
+
+    // Put a removed exercise back into the session
+    restoreExercise(exerciseIndex) {
+        delete AppState.removedExercises[exerciseIndex];
+        Storage.saveInProgressWorkout();
+
+        UI.updateSingleExerciseCard(exerciseIndex, false);
+        UI.updateWorkoutProgress();
     },
 
     // Start duration timer (counts UP)
@@ -2132,6 +2336,7 @@ const WorkoutController = {
         AppState.currentWorkout = null;
         AppState.workoutData = [];
         AppState.substitutions = {};
+        AppState.removedExercises = {};
         Storage.clearInProgressWorkout(); // Clear saved in-progress workout
         UI.stopRestTimer();
         UI.releaseWakeLock(); // Release wake lock when workout cancelled
@@ -2181,12 +2386,19 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Check for in-progress workout and offer to restore
     const inProgress = Storage.getInProgressWorkout();
     if (inProgress) {
-        const lastSavedTime = new Date(inProgress.lastSaved);
         const timeSince = Math.round((Date.now() - inProgress.lastSaved) / 1000 / 60); // minutes
 
         const workoutDef = inProgress.isOptional
             ? getOptionalWorkout(inProgress.workoutType)
             : getWorkout(inProgress.workoutType);
+
+        // A saved workout can outlive its definition (renamed or removed in
+        // data.js). Discard it rather than crashing the whole app on boot.
+        if (!workoutDef) {
+            console.warn('Discarding in-progress workout for unknown type:', inProgress.workoutType);
+            Storage.clearInProgressWorkout();
+            return;
+        }
 
         const message = `You have an in-progress workout:\n\n${workoutDef.name}\nLast saved: ${timeSince} minutes ago\n\nWould you like to continue this workout?`;
 
@@ -2197,82 +2409,17 @@ document.addEventListener('DOMContentLoaded', async () => {
             AppState.workoutStartTime = inProgress.startTime;
             AppState.workoutData = inProgress.exercises;
             AppState.substitutions = inProgress.substitutions || {};
+            AppState.removedExercises = inProgress.removedExercises || {};
 
             // Switch to workout view and render
             UI.requestWakeLock();
             UI.switchView('workout');
             await UI.renderFullWorkout();
 
-            // Mark previously completed sets as completed
-            inProgress.exercises.forEach((exercise, exerciseIndex) => {
-                const card = document.querySelector(`[data-exercise-index="${exerciseIndex}"]`);
-                if (!card || !exercise.sets || exercise.sets.length === 0) return;
-
-                const exerciseDef = workoutDef.exercises[exerciseIndex];
-
-                // Substitutions don't change exercise type, only the name
-                // So we use the original exercise definition for type detection
-                const exerciseType = exerciseDef.exerciseType || 'reps';
-
-                if (exerciseType === 'duration') {
-                    // Duration exercise: mark individual sets as completed
-                    exercise.sets.forEach(set => {
-                        const setRow = card.querySelector(`.duration-set-row[data-set="${set.setNumber}"]`);
-                        if (setRow) {
-                            const checkbox = setRow.querySelector('.set-checkbox');
-                            const durationInput = setRow.querySelector('.duration-input');
-
-                            if (checkbox) checkbox.checked = true;
-                            if (durationInput) {
-                                durationInput.value = set.reps.replace(/[^\d.]/g, ''); // Remove unit suffix
-                                durationInput.disabled = true;
-                            }
-                            setRow.classList.add('completed');
-                        }
-                    });
-
-                    // Mark exercise card as completed if all sets done
-                    if (exercise.sets.length === exerciseDef.sets) {
-                        card.classList.add('completed');
-                    }
-
-                } else if (exerciseType === 'completion') {
-                    // Completion exercise: check the checkbox and mark as completed
-                    const checkbox = card.querySelector('.completion-checkbox');
-
-                    if (exercise.sets[0] && checkbox) {
-                        checkbox.checked = true;
-                        checkbox.disabled = true;
-                        card.classList.add('completed');
-                    }
-
-                } else {
-                    // Traditional reps/weight: mark individual sets
-                    exercise.sets.forEach(set => {
-                        const setRow = card.querySelector(`.set-row[data-set="${set.setNumber}"]`);
-                        if (setRow) {
-                            const checkbox = setRow.querySelector('.set-checkbox');
-                            const repsInput = setRow.querySelector('.reps-input');
-                            const weightInput = setRow.querySelector('.weight-input');
-
-                            if (checkbox) checkbox.checked = true;
-                            if (repsInput) {
-                                repsInput.value = set.reps;
-                                repsInput.disabled = true;
-                            }
-                            if (weightInput) {
-                                weightInput.value = set.weight;
-                                weightInput.disabled = true;
-                            }
-                            setRow.classList.add('completed');
-                        }
-                    });
-
-                    // Mark exercise card as completed if all sets done
-                    if (exercise.sets.length === exerciseDef.sets) {
-                        card.classList.add('completed');
-                    }
-                }
+            // Mark previously completed sets as completed. Shared with the
+            // substitution path so both stay consistent across exercise types.
+            inProgress.exercises.forEach((_exercise, exerciseIndex) => {
+                UI.applyCompletedState(exerciseIndex);
             });
 
             UI.updateWorkoutProgress();
