@@ -234,6 +234,61 @@ suite('substitutions', async ({ browser, baseUrl, t }) => {
 });
 
 // ---------------------------------------------------------------------------
+// Instructions must follow the exercise actually being performed
+// ---------------------------------------------------------------------------
+suite('instructions', async ({ browser, baseUrl, t }) => {
+    const page = await newAppPage(browser, baseUrl);
+
+    // Every option a user can pick must have cues on file, otherwise
+    // substituting silently strips the instructions.
+    const coverage = await page.evaluate(() => {
+        const names = new Set();
+        Object.values(SUBSTITUTIONS).forEach(v => v.options.forEach(o => names.add(o)));
+        Object.values(BODYWEIGHT_SUBSTITUTIONS).forEach(v => names.add(v));
+        return [...names].filter(n => !getExerciseInstructions(n));
+    });
+    t.equal(coverage.length, 0, 'every substitute option has form cues on file', coverage);
+
+    t.equal(
+        await page.evaluate(() => getExerciseInstructions('LANDMINE PRESS') !== null),
+        true,
+        'instruction lookup is case-insensitive');
+
+    await startWorkout(page, 'upper_a');
+
+    const shown = await page.evaluate(async () => {
+        const read = () => {
+            const el = document.querySelector('[data-exercise-index="0"] .exercise-notes');
+            return el ? el.textContent.trim() : null;
+        };
+        const original = read();
+
+        AppState.substitutions[0] = 'Landmine press';
+        await UI.updateSingleExerciseCard(0, false);
+        const substituted = read();
+
+        AppState.substitutions[0] = 'Some Machine I Invented';
+        await UI.updateSingleExerciseCard(0, false);
+        const custom = read();
+
+        delete AppState.substitutions[0];
+        await UI.updateSingleExerciseCard(0, false);
+        const restored = read();
+
+        return { original, substituted, custom, restored, expected: getExerciseInstructions('Landmine press') };
+    });
+
+    t.ok(shown.original && shown.original.length > 0, 'the original exercise shows its own cues', shown.original);
+    t.equal(shown.substituted, shown.expected, 'substituting shows the substitute\'s own cues');
+    t.ok(shown.substituted !== shown.original, 'the instructions actually change on substitution', shown.substituted);
+    // Showing the original's cues for an unknown movement would be misleading.
+    t.equal(shown.custom, null, 'a custom exercise shows no inherited cues');
+    t.equal(shown.restored, shown.original, 'resetting to the original restores its cues');
+
+    await page.close();
+});
+
+// ---------------------------------------------------------------------------
 // Previous-performance lookup across history shapes
 // ---------------------------------------------------------------------------
 suite('previous performance', async ({ browser, baseUrl, t }) => {

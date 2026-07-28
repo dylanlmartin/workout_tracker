@@ -885,12 +885,15 @@ const UI = {
         // Get the actual exercise definition (substituted or original)
         let actualExercise = exercise;
         if (isSubstituted) {
-            // Look up the substitution details to get notes
-            const subs = getSubstitutions(exercise.name);
+            // Show cues for the movement actually being performed. The
+            // original's cues can be irrelevant or unsafe for the substitute
+            // (e.g. "keep hips elevated" on a movement with no hips involved),
+            // so never fall back to them. A custom name has no cues on file,
+            // in which case the card simply shows none.
             actualExercise = {
                 ...exercise,
                 name: substitutedName,
-                notes: subs?.notes || exercise.notes
+                notes: getExerciseInstructions(substitutedName)
             };
         }
 
