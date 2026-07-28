@@ -93,7 +93,7 @@ const Storage = {
         const workout = this.getPreviousWorkout(workoutId);
         if (!workout) return null;
 
-        const exercise = workout.exercises.find(e => e.name === exerciseName);
+        const exercise = workout.exercises.find(e => performedExerciseName(e) === exerciseName);
         return exercise || null;
     },
 
@@ -180,7 +180,7 @@ const Storage = {
         workouts.forEach(workout => {
             workout.exercises.forEach(exercise => {
                 exercise.sets.forEach(set => {
-                    csv += `${workout.date},${workout.workoutType},${exercise.name},${set.setNumber},${set.reps},${set.weight},${exercise.rest}\n`;
+                    csv += `${workout.date},${workout.workoutType},${performedExerciseName(exercise)},${set.setNumber},${set.reps},${set.weight},${exercise.rest}\n`;
                 });
             });
         });
@@ -194,6 +194,24 @@ const Storage = {
         window.URL.revokeObjectURL(url);
     }
 };
+
+// ==================== EXERCISE NAME RESOLUTION ====================
+
+/**
+ * The exercise a history entry actually represents.
+ *
+ * localStorage keeps the original programme name in `name` and records the
+ * swap separately in `substitutedWith`, so a session performed as a
+ * substitute is stored under the original exercise's name. Google Sheets
+ * rows, by contrast, are logged under the name that was performed and carry
+ * no `substitutedWith`. Resolving through this helper makes both sources
+ * agree, so previous-performance lookups attach to the movement that was
+ * really done rather than the one originally programmed.
+ */
+function performedExerciseName(historyEntry) {
+    if (!historyEntry) return null;
+    return historyEntry.substitutedWith || historyEntry.name;
+}
 
 // ==================== GOOGLE SHEETS API ====================
 
@@ -846,9 +864,12 @@ const UI = {
             };
         }
 
-        // Get previous data for this exercise (use substituted name if applicable)
+        // Get previous data for this exercise. Match on what was actually
+        // performed, so a session done as a substitute attaches to that
+        // substitute rather than to the exercise it replaced.
         const lookupName = isSubstituted ? substitutedName : exercise.name;
-        const previousExercise = previousWorkout?.exercises.find(e => e.name === lookupName);
+        const previousExercise = previousWorkout?.exercises
+            .find(e => performedExerciseName(e) === lookupName);
 
         let html = '<div class="exercise-header">';
         html += `<h3>${displayName}</h3>`;
