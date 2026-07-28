@@ -5,6 +5,17 @@
 ### Testing Requirements
 **ALWAYS test and verify solutions before claiming they work.**
 
+There is an automated suite in `tests/` that drives the real app in headless
+Chromium. Run it before and after any change:
+
+```bash
+npm test                     # all suites
+node tests/run.js substit    # filter by suite name
+```
+
+When fixing a bug, add a failing test first and confirm it fails for the right
+reason. Reverting the fix should turn it red again. See `tests/README.md`.
+
 Before marking any fix as complete:
 1. **Trace through the actual code flow** - Don't assume how code works
 2. **Verify the root cause** - Understand WHY the bug exists before fixing it

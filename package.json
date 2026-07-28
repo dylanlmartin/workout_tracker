@@ -1,0 +1,12 @@
+{
+  "name": "workout-tracker",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Workout tracker PWA with Google Sheets sync",
+  "scripts": {
+    "test": "node tests/run.js"
+  },
+  "devDependencies": {
+    "playwright": "^1.49.0"
+  }
+}
