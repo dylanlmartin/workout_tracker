@@ -144,6 +144,33 @@ body {
     50% { opacity: 0.5; }
 }
 
+/* ===== Connect Banner (home screen) ===== */
+.connect-banner {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-sm);
+    padding: var(--spacing-md);
+    margin-bottom: var(--spacing-lg);
+    background-color: var(--accent-light);
+    border: 1px solid var(--accent-primary);
+    border-radius: var(--radius-md);
+}
+
+.connect-banner.hidden {
+    display: none;
+}
+
+.connect-banner-text {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-xs);
+    font-size: var(--font-size-sm);
+}
+
+.connect-banner-text span {
+    color: var(--text-secondary);
+}
+
 /* ===== Bottom Navigation ===== */
 .bottom-nav {
     position: fixed;
