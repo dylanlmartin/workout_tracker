@@ -81,12 +81,73 @@ if (navigator.serviceWorker) {
     });
 }
 
-// Unauthenticated: the app must work entirely against localStorage.
+// Unauthenticated by default: the app must work entirely against localStorage.
 window.gapi = { load: () => {}, client: { init: () => Promise.resolve(), setToken() {}, getToken: () => null } };
 window.google = { accounts: { oauth2: { initTokenClient: () => ({ requestAccessToken() {} }), revoke() {} } } };
 `;
 
-async function newAppPage(browser, baseUrl, { seedLocalStorage, confirmReply = false } = {}) {
+/**
+ * An in-memory stand-in for the Sheets API.
+ *
+ * Enough of values.get / values.append / spreadsheets.get / batchUpdate to
+ * exercise the real logging and row-deletion code paths, so writes are tested
+ * by behaviour rather than assumed. Tabs are seeded with their header row.
+ */
+const FAKE_SHEETS = `
+window.__sheet = {
+    'Workout Log': [['Date','Workout Type','Exercise','Exercise Type','Set','Reps','Weight','Rest','Notes']],
+    'Workout History': [['Date','Workout Name','Workout Type','Total Volume','Duration','Exercises','Notes']]
+};
+window.__sheetCalls = { append: 0, batchUpdate: 0, get: 0 };
+const TAB_IDS = { 'Workout Log': 111, 'Workout History': 222 };
+const tabOf = (range) => String(range).split('!')[0].replace(/^'|'$/g, '');
+
+window.gapi = {
+    load: (_, cb) => cb && cb(),
+    client: {
+        _token: { access_token: 'test' },
+        init: () => Promise.resolve(),
+        setToken(t) { this._token = t; },
+        getToken() { return this._token; },
+        sheets: {
+            spreadsheets: {
+                get: () => {
+                    window.__sheetCalls.get++;
+                    return Promise.resolve({ result: { sheets: Object.keys(TAB_IDS).map(title => ({
+                        properties: { sheetId: TAB_IDS[title], title }
+                    })) } });
+                },
+                batchUpdate: ({ resource }) => {
+                    window.__sheetCalls.batchUpdate++;
+                    (resource.requests || []).forEach(req => {
+                        const d = req.deleteDimension;
+                        if (!d) return;
+                        const title = Object.keys(TAB_IDS).find(k => TAB_IDS[k] === d.range.sheetId);
+                        if (!title) throw new Error('unknown sheetId ' + d.range.sheetId);
+                        window.__sheet[title].splice(d.range.startIndex, d.range.endIndex - d.range.startIndex);
+                    });
+                    return Promise.resolve({ result: {} });
+                },
+                values: {
+                    get: ({ range }) => Promise.resolve({
+                        result: { values: (window.__sheet[tabOf(range)] || []).map(r => r.slice()) }
+                    }),
+                    append: ({ range, resource }) => {
+                        window.__sheetCalls.append++;
+                        const tab = tabOf(range);
+                        window.__sheet[tab] = window.__sheet[tab] || [];
+                        resource.values.forEach(r => window.__sheet[tab].push(r.map(v => String(v))));
+                        return Promise.resolve({ result: {} });
+                    }
+                }
+            }
+        }
+    }
+};
+window.google = { accounts: { oauth2: { initTokenClient: () => ({ requestAccessToken() {} }), revoke() {} } } };
+`;
+
+async function newAppPage(browser, baseUrl, { seedLocalStorage, confirmReply = false, authenticated = false } = {}) {
     const page = await browser.newPage({ viewport: { width: 402, height: 874 } });
     const pageErrors = [];
     page.on('pageerror', e => pageErrors.push(e.message));
@@ -103,6 +164,9 @@ async function newAppPage(browser, baseUrl, { seedLocalStorage, confirmReply = f
     });
 
     await page.addInitScript(BOOTSTRAP);
+    if (authenticated) {
+        await page.addInitScript(FAKE_SHEETS);
+    }
     // Init scripts re-run on every navigation, so the reply has to be baked in
     // here rather than set once via evaluate - a reload would reset it.
     await page.addInitScript(`window.__confirmReply = ${confirmReply === true};`);
@@ -113,6 +177,15 @@ async function newAppPage(browser, baseUrl, { seedLocalStorage, confirmReply = f
     // app.js declares AppState/UI with `const`, which creates script-scoped
     // bindings rather than properties of `window` - so probe them bare.
     await page.waitForFunction(() => typeof AppState !== 'undefined' && typeof UI !== 'undefined');
+
+    if (authenticated) {
+        // Flip the app into its authenticated path without running OAuth.
+        await page.evaluate(() => {
+            AppState.isAuthenticated = true;
+            AppState.sheetId = 'test-sheet';
+            SheetsAPI._tabIdCache = null;
+        });
+    }
     return page;
 }
 
@@ -168,8 +241,14 @@ async function indexOfType(page, workoutId, type, isOptional = false) {
     }, { workoutId, type, isOptional });
 }
 
+/** Rows currently in a tab of the fake sheet, excluding the header. */
+async function sheetRows(page, tab = 'Workout Log') {
+    return page.evaluate(t => (window.__sheet[t] || []).slice(1), tab);
+}
+
 module.exports = {
     ROOT,
+    sheetRows,
     startServer,
     newAppPage,
     startWorkout,

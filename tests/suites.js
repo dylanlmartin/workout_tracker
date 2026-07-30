@@ -8,6 +8,7 @@
 
 const {
     newAppPage,
+    sheetRows,
     startWorkout,
     completeRepsSet,
     uncheckRepsSet,
@@ -457,6 +458,136 @@ suite('removals survive restore', async ({ browser, baseUrl, t }) => {
     t.equal(state.collapsed, true, 'a restored removal still renders collapsed');
 
     await page.close();
+});
+
+// ---------------------------------------------------------------------------
+// Google Sheets write path: logging a set and withdrawing it again
+// ---------------------------------------------------------------------------
+suite('sheets logging', async ({ browser, baseUrl, t }) => {
+    const page = await newAppPage(browser, baseUrl, { authenticated: true });
+    await startWorkout(page, 'upper_a');
+
+    await completeRepsSet(page, 0, 1, 10, 50);
+    await completeRepsSet(page, 0, 2, 9, 55);
+    await page.waitForTimeout(120);
+
+    let rows = await sheetRows(page);
+    t.equal(rows.length, 2, 'completing two sets appends two rows', rows);
+    t.equal(rows[0][2], 'Neutral-Grip DB Floor Press', 'the row records the exercise name');
+    t.equal(rows[0][4], '1', 'the row records the set number');
+    t.equal(rows[0][5], '10', 'the row records the reps');
+
+    // The behaviour this change is about.
+    await uncheckRepsSet(page, 0, 2);
+    await page.waitForTimeout(200);
+    rows = await sheetRows(page);
+    t.equal(rows.length, 1, 'unchecking a set deletes its row from the sheet', rows);
+    t.equal(rows[0][4], '1', 'the remaining row is the set that is still checked', rows[0]);
+
+    // Deleting must not disturb neighbouring rows.
+    await completeRepsSet(page, 0, 3, 8, 60);
+    await page.waitForTimeout(120);
+    await uncheckRepsSet(page, 0, 1);
+    await page.waitForTimeout(200);
+    rows = await sheetRows(page);
+    t.equal(rows.length, 1, 'deleting a middle set leaves the others intact', rows);
+    t.equal(rows[0][4], '3', 'the surviving row is the untouched set', rows[0]);
+
+    await page.close();
+});
+
+suite('sheets logging for duration and completion', async ({ browser, baseUrl, t }) => {
+    // Duration
+    const page = await newAppPage(browser, baseUrl, { authenticated: true });
+    await startWorkout(page, 'upper_a');
+    const durIdx = await indexOfType(page, 'upper_a', 'duration');
+
+    await completeDurationSet(page, durIdx, 1, 30);
+    await page.waitForTimeout(120);
+    let rows = await sheetRows(page);
+    t.equal(rows.length, 1, 'completing a duration set appends a row', rows);
+
+    await page.evaluate(idx => {
+        const cb = document.querySelector(`[data-exercise-index="${idx}"] .duration-set-row[data-set="1"] .set-checkbox`);
+        cb.checked = false;
+        cb.dispatchEvent(new Event('change', { bubbles: true }));
+    }, durIdx);
+    await page.waitForTimeout(200);
+    rows = await sheetRows(page);
+    t.equal(rows.length, 0, 'unchecking a duration set deletes its row', rows);
+
+    // Completion
+    const page2 = await newAppPage(browser, baseUrl, { authenticated: true });
+    await startWorkout(page2, 'core_mobility', true);
+    const compIdx = await indexOfType(page2, 'core_mobility', 'completion', true);
+
+    const toggle = async (checked) => {
+        await page2.evaluate(({ idx, checked }) => {
+            const cb = document.querySelector(`[data-exercise-index="${idx}"] .completion-checkbox`);
+            cb.checked = checked;
+            cb.dispatchEvent(new Event('change', { bubbles: true }));
+        }, { idx: compIdx, checked });
+        await page2.waitForTimeout(150);
+    };
+
+    await toggle(true);
+    let rows2 = await sheetRows(page2);
+    t.equal(rows2.length, 1, 'marking a completion exercise appends a row', rows2);
+
+    await toggle(false);
+    rows2 = await sheetRows(page2);
+    t.equal(rows2.length, 0, 'unmarking a completion exercise deletes its row', rows2);
+
+    await page.close();
+    await page2.close();
+});
+
+suite('sheets deletion edge cases', async ({ browser, baseUrl, t }) => {
+    // A substituted set is logged under the substituted name, so the deletion
+    // has to search on that name or it will not find the row.
+    const page = await newAppPage(browser, baseUrl, { authenticated: true });
+    await startWorkout(page, 'upper_a');
+    await page.evaluate(async () => {
+        AppState.substitutions[0] = 'Landmine press';
+        await UI.updateSingleExerciseCard(0, false);
+    });
+    await completeRepsSet(page, 0, 1, 10, 50);
+    await page.waitForTimeout(120);
+    let rows = await sheetRows(page);
+    t.equal(rows[0] && rows[0][2], 'Landmine press', 'a substituted set logs under the substituted name');
+
+    await uncheckRepsSet(page, 0, 1);
+    await page.waitForTimeout(200);
+    rows = await sheetRows(page);
+    t.equal(rows.length, 0, 'unchecking a substituted set deletes its row', rows);
+
+    // Checking then immediately unchecking must not race the append.
+    await completeRepsSet(page, 0, 1, 10, 50);
+    await uncheckRepsSet(page, 0, 1); // no wait: the append is still in flight
+    await page.waitForTimeout(300);
+    rows = await sheetRows(page);
+    t.equal(rows.length, 0, 'an immediate undo still removes the row it raced', rows);
+
+    // Removing an exercise withdraws every row it logged.
+    await completeRepsSet(page, 0, 1, 10, 50);
+    await completeRepsSet(page, 0, 2, 10, 50);
+    await page.waitForTimeout(150);
+    t.equal((await sheetRows(page)).length, 2, 'two sets logged before removal');
+    await page.evaluate(() => { window.__confirmReply = true; });
+    await page.evaluate(() => WorkoutController.removeExercise(0));
+    await page.waitForTimeout(300);
+    t.equal((await sheetRows(page)).length, 0, 'removing an exercise deletes its logged rows');
+
+    // Unauthenticated undo must not blow up.
+    const page2 = await newAppPage(browser, baseUrl);
+    await startWorkout(page2, 'upper_a');
+    await completeRepsSet(page2, 0, 1, 10, 50);
+    await uncheckRepsSet(page2, 0, 1);
+    await page2.waitForTimeout(150);
+    t.equal(page2.__errors.length, 0, 'unchecking while signed out does not throw', page2.__errors);
+
+    await page.close();
+    await page2.close();
 });
 
 // ---------------------------------------------------------------------------

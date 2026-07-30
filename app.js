@@ -482,7 +482,137 @@ const SheetsAPI = {
     async logSet(workoutType, exerciseName, exerciseType = 'reps', setNumber, reps, weight, rest, notes = '') {
         const date = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
         const row = [date, workoutType, exerciseName, exerciseType, setNumber, reps, weight, rest, notes];
-        await this.appendToSheet('Workout Log!A:I', [row]);
+
+        // Track the in-flight append so an immediate undo waits for it rather
+        // than searching for a row that has not landed yet.
+        const key = this.pendingLogKey(exerciseName, setNumber);
+        const pending = this.appendToSheet('Workout Log!A:I', [row]);
+        this._pendingLogs[key] = pending;
+        try {
+            await pending;
+        } finally {
+            if (this._pendingLogs[key] === pending) delete this._pendingLogs[key];
+        }
+    },
+
+    // In-flight set appends, keyed so an undo can wait on the matching write
+    _pendingLogs: {},
+
+    pendingLogKey(exerciseName, setNumber) {
+        return `${exerciseName}|${setNumber}`;
+    },
+
+    // Tab title -> numeric sheet id, needed for row deletion
+    _tabIdCache: null,
+
+    async getTabId(title) {
+        if (this._tabIdCache && this._tabIdCache[title] !== undefined) {
+            return this._tabIdCache[title];
+        }
+        const response = await gapi.client.sheets.spreadsheets.get({
+            spreadsheetId: AppState.sheetId,
+            fields: 'sheets.properties(sheetId,title)'
+        });
+        this._tabIdCache = {};
+        (response.result.sheets || []).forEach(s => {
+            this._tabIdCache[s.properties.title] = s.properties.sheetId;
+        });
+        return this._tabIdCache[title];
+    },
+
+    /**
+     * Remove a previously logged set from the Workout Log.
+     *
+     * Unchecking a set already drops it from local state; without this the
+     * appended row stayed in the sheet forever, inflating the log with sets
+     * that were undone. Deleting a row needs the tab's numeric id and a
+     * batchUpdate - the values API can only append or overwrite.
+     */
+    async deleteLoggedSet(workoutType, exerciseName, setNumber) {
+        if (!AppState.isAuthenticated) return false;
+
+        // Row indices are computed against a snapshot of the sheet, so two
+        // deletions running at once would both resolve indices before either
+        // deleted, and the second would target a row that had already shifted.
+        // Serialise them; a failure must not stall the queue.
+        const run = () => this._deleteLoggedSetNow(workoutType, exerciseName, setNumber);
+        const next = this._deleteChain.then(run, run);
+        this._deleteChain = next.then(() => {}, () => {});
+        return next;
+    },
+
+    _deleteChain: Promise.resolve(),
+
+    async _deleteLoggedSetNow(workoutType, exerciseName, setNumber) {
+
+        // If this set is still being written, let that finish first.
+        const key = this.pendingLogKey(exerciseName, setNumber);
+        if (this._pendingLogs[key]) {
+            try { await this._pendingLogs[key]; } catch (e) { /* append failed; nothing to delete */ }
+        }
+
+        UI.setSyncStatus('syncing');
+        try {
+            const date = new Date().toISOString().split('T')[0];
+            const rows = await this.readRange('Workout Log!A:I');
+            if (!rows || rows.length === 0) {
+                UI.setSyncStatus('synced');
+                return false;
+            }
+
+            // Search from the bottom: appends are chronological, so the last
+            // match is the row this session wrote.
+            let targetIndex = -1;
+            for (let i = rows.length - 1; i >= 1; i--) { // row 0 is the header
+                const r = rows[i];
+                if (r[0] === date &&
+                    r[1] === workoutType &&
+                    r[2] === exerciseName &&
+                    String(r[4]) === String(setNumber)) {
+                    targetIndex = i;
+                    break;
+                }
+            }
+
+            if (targetIndex === -1) {
+                console.warn('No logged row found to delete for', exerciseName, 'set', setNumber);
+                UI.setSyncStatus('synced');
+                return false;
+            }
+
+            const tabId = await this.getTabId('Workout Log');
+            if (tabId === undefined || tabId === null) {
+                console.error('Could not resolve the Workout Log tab id');
+                UI.setSyncStatus('offline');
+                return false;
+            }
+
+            // The values array is 0-based from the first sheet row, which is
+            // exactly the index deleteDimension expects.
+            await gapi.client.sheets.spreadsheets.batchUpdate({
+                spreadsheetId: AppState.sheetId,
+                resource: {
+                    requests: [{
+                        deleteDimension: {
+                            range: {
+                                sheetId: tabId,
+                                dimension: 'ROWS',
+                                startIndex: targetIndex,
+                                endIndex: targetIndex + 1
+                            }
+                        }
+                    }]
+                }
+            });
+
+            UI.setSyncStatus('synced');
+            return true;
+        } catch (error) {
+            console.error('Failed to delete logged set from Google Sheets:', error);
+            if (error.status === 401) this.handleExpiredToken();
+            UI.setSyncStatus('offline');
+            return false;
+        }
     },
 
     // Log completed workout to Workout History sheet
@@ -1910,6 +2040,27 @@ const WorkoutController = {
         await UI.renderFullWorkout();
     },
 
+    /**
+     * The name this exercise's sets are logged under, which is the substituted
+     * name when one is set. Deletions must search on the same name the append
+     * used, or they will not find the row.
+     */
+    loggedExerciseName(exerciseIndex, exercise) {
+        return AppState.substitutions[exerciseIndex] || exercise.name;
+    },
+
+    // Remove a set's row from the sheet after it is unchecked locally
+    removeSetFromSheet(exerciseIndex, exercise, setNumber) {
+        if (!AppState.isAuthenticated) return;
+        SheetsAPI.deleteLoggedSet(
+            AppState.currentWorkout,
+            this.loggedExerciseName(exerciseIndex, exercise),
+            setNumber
+        ).catch(error => {
+            console.error('Failed to remove set from Google Sheets:', error);
+        });
+    },
+
     // Handle set completion (checkbox clicked)
     handleSetComplete(exerciseIndex, setNumber) {
         const card = document.querySelector(`[data-exercise-index="${exerciseIndex}"]`);
@@ -1936,6 +2087,13 @@ const WorkoutController = {
             // set as completed. The duration path already did this.
             Storage.saveInProgressWorkout();
             UI.updateWorkoutProgress();
+
+            // Drop the matching row from the sheet so an undone set does not
+            // linger in the log.
+            const workout = AppState.isOptionalWorkout
+                ? getOptionalWorkout(AppState.currentWorkout)
+                : getWorkout(AppState.currentWorkout);
+            this.removeSetFromSheet(exerciseIndex, workout.exercises[exerciseIndex], setNumber);
             return;
         }
 
@@ -2016,9 +2174,22 @@ const WorkoutController = {
 
         if (recordedSets > 0) {
             const warning = AppState.isAuthenticated
-                ? `This exercise has ${recordedSets} completed set(s).\n\nRemoving it discards them from this workout. Sets already sent to Google Sheets stay in the log and would need removing there.\n\nRemove anyway?`
+                ? `This exercise has ${recordedSets} completed set(s).\n\nRemoving it discards them from this workout and deletes their rows from Google Sheets.\n\nRemove anyway?`
                 : `This exercise has ${recordedSets} completed set(s).\n\nRemoving it discards them from this workout.\n\nRemove anyway?`;
             if (!confirm(warning)) return;
+
+            // Removing an exercise is an undo of every set it recorded, so the
+            // logged rows go with them rather than being orphaned in the sheet.
+            const workout = AppState.isOptionalWorkout
+                ? getOptionalWorkout(AppState.currentWorkout)
+                : getWorkout(AppState.currentWorkout);
+            const exerciseDef = workout?.exercises?.[exerciseIndex];
+            if (exerciseDef) {
+                exerciseData.sets.forEach(set => {
+                    this.removeSetFromSheet(exerciseIndex, exerciseDef, set.setNumber);
+                });
+            }
+
             exerciseData.sets = [];
         }
 
@@ -2199,7 +2370,11 @@ const WorkoutController = {
 
             Storage.saveInProgressWorkout();
             setRow.classList.remove('completed');
+            card.classList.remove('completed');
             durationInput.disabled = false;
+            UI.updateWorkoutProgress();
+
+            this.removeSetFromSheet(exerciseIndex, exercise, setNum);
         }
     },
 
@@ -2272,6 +2447,9 @@ const WorkoutController = {
 
             // Update UI
             UI.updateExerciseCard(exerciseIndex);
+
+            // A completion exercise logs a single row as set 1.
+            this.removeSetFromSheet(exerciseIndex, exercise, 1);
         }
     },
 
