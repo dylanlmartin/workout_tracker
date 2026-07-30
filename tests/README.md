@@ -28,9 +28,12 @@ The runner exits non-zero on any failure, so it can gate a merge.
 | `harness.js` | static server, browser stubs, helpers that click through the UI |
 | `suites.js` | the tests themselves |
 
-The suites run **unauthenticated**, against localStorage. Google's SDKs are
-stubbed and network requests to them are blocked, so the run is hermetic and
-needs no credentials.
+Most suites run **unauthenticated**, against localStorage. The Sheets suites
+pass `{ authenticated: true }` to `newAppPage`, which swaps in an in-memory
+stand-in for the Sheets API (`values.get` / `values.append` /
+`spreadsheets.get` / `batchUpdate`) so the real write and row-deletion paths
+are exercised. Either way Google's SDKs are stubbed and network requests to
+them are blocked, so the run is hermetic and needs no credentials.
 
 ## What is covered
 
@@ -50,6 +53,11 @@ needs no credentials.
   performed, for both the Sheets and localStorage history shapes
 - **restore in-progress** — a saved workout comes back with its sets checked,
   filled and locked
+- **sheets logging** — completing a set appends a row and unchecking it deletes
+  that row again, for all three exercise types, without disturbing neighbouring
+  rows. Also covers substituted names, an undo racing its own append,
+  removing an exercise withdrawing every row it logged, and unchecking while
+  signed out
 - **resilience** — a saved workout whose type no longer exists in `data.js`
   neither crashes the history view nor blocks app boot
 
