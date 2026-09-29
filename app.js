@@ -28,7 +28,8 @@ const AppState = {
     removedExercises: {}, // Exercises dropped from this session {exerciseIndex: true}
     currentSubstitutionExercise: null, // Currently viewing substitutions for this exercise
     bodyweightMode: false, // Bodyweight mode enabled/disabled
-    isOptionalWorkout: false // Track if current workout is optional
+    isOptionalWorkout: false, // Track if current workout is optional
+    currentPlan: DEFAULT_PLAN_ID // Which training plan the home screen shows
 };
 
 // ==================== LOCAL STORAGE ====================
@@ -39,7 +40,18 @@ const Storage = {
         CONFIG: 'workout_tracker_config',
         THEME: 'workout_tracker_theme',
         GOOGLE_TOKEN: 'workout_tracker_google_token',
-        IN_PROGRESS_WORKOUT: 'workout_tracker_in_progress'
+        IN_PROGRESS_WORKOUT: 'workout_tracker_in_progress',
+        ACTIVE_PLAN: 'workout_tracker_active_plan'
+    },
+
+    // Save the selected training plan. Kept in its own key rather than the
+    // config blob, which saveConfig() replaces wholesale.
+    saveActivePlan(planId) {
+        localStorage.setItem(this.KEYS.ACTIVE_PLAN, planId);
+    },
+
+    getActivePlan() {
+        return localStorage.getItem(this.KEYS.ACTIVE_PLAN) || DEFAULT_PLAN_ID;
     },
 
     // Save in-progress workout (auto-save during workout)
@@ -804,7 +816,9 @@ const SheetsAPI = {
 const UI = {
     // Initialize UI
     init() {
+        this.loadActivePlan();
         this.renderWorkoutGrid();
+        this.renderPlanPicker();
         this.attachEventListeners();
         this.loadTheme();
         this.loadConfig();
@@ -821,9 +835,9 @@ const UI = {
                 return;
             }
 
-            const mainWorkouts = getAllWorkouts();
+            const mainWorkouts = getPlanWorkouts(AppState.currentPlan);
             if (!mainWorkouts || mainWorkouts.length === 0) {
-                console.error('No main workouts found');
+                console.error('No main workouts found for plan', AppState.currentPlan);
                 return;
             }
 
@@ -842,7 +856,7 @@ const UI = {
                 console.error('Optional workout grid element not found');
                 // Continue anyway - main workouts are rendered
             } else {
-                const optionalWorkouts = getAllOptionalWorkouts();
+                const optionalWorkouts = getPlanOptionalWorkouts(AppState.currentPlan);
                 if (optionalWorkouts && optionalWorkouts.length > 0) {
                     optionalGrid.innerHTML = optionalWorkouts.map(workout => `
                         <div class="workout-card" data-workout-id="${workout.id}" data-is-optional="true">
@@ -854,7 +868,11 @@ const UI = {
                         </div>
                     `).join('');
                 } else {
-                    console.warn('No optional workouts found');
+                    optionalGrid.innerHTML = '';
+                }
+                const optionalSection = document.querySelector('.optional-workouts-section');
+                if (optionalSection) {
+                    optionalSection.classList.toggle('hidden', !optionalWorkouts || optionalWorkouts.length === 0);
                 }
             }
 
@@ -874,6 +892,54 @@ const UI = {
                 mainGrid.innerHTML = '<p style="color: red;">Error loading workouts. Please refresh the page.</p>';
             }
         }
+    },
+
+    /**
+     * Load the saved plan. A plan removed from the code falls back to the
+     * default rather than leaving the home screen blank.
+     */
+    loadActivePlan() {
+        const saved = Storage.getActivePlan();
+        const plan = getPlan(saved);
+        AppState.currentPlan = plan ? plan.id : DEFAULT_PLAN_ID;
+        if (AppState.currentPlan !== saved) {
+            Storage.saveActivePlan(AppState.currentPlan);
+        }
+    },
+
+    /**
+     * Render the plan picker. Hidden when only one plan exists, so a single
+     * plan does not get a pointless dropdown.
+     */
+    renderPlanPicker() {
+        const wrapper = document.getElementById('plan-picker');
+        const select = document.getElementById('plan-select');
+        const description = document.getElementById('plan-description');
+        if (!wrapper || !select) return;
+
+        const plans = getAllPlans();
+        wrapper.classList.toggle('hidden', plans.length < 2);
+
+        select.innerHTML = plans.map(plan => `
+            <option value="${escapeHtml(plan.id)}" ${plan.id === AppState.currentPlan ? 'selected' : ''}>
+                ${escapeHtml(plan.name)}
+            </option>
+        `).join('');
+
+        if (description) {
+            const active = getPlan(AppState.currentPlan);
+            description.textContent = active ? (active.description || '') : '';
+        }
+    },
+
+    /** Switch plans and re-render the home screen. */
+    setActivePlan(planId) {
+        const plan = getPlan(planId);
+        if (!plan) return;
+        AppState.currentPlan = plan.id;
+        Storage.saveActivePlan(plan.id);
+        this.renderWorkoutGrid();
+        this.renderPlanPicker();
     },
 
     // Switch between views
@@ -1774,6 +1840,13 @@ const UI = {
         document.getElementById('skip-rest-btn').addEventListener('click', () => {
             this.stopRestTimer();
         });
+
+        const planSelect = document.getElementById('plan-select');
+        if (planSelect) {
+            planSelect.addEventListener('change', (e) => {
+                this.setActivePlan(e.target.value);
+            });
+        }
 
         // Home screen connect banner (shown when silent sign-in was unavailable)
         document.getElementById('connect-banner-btn').addEventListener('click', () => {

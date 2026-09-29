@@ -56,6 +56,143 @@ suite('workout data', async ({ browser, baseUrl, t }) => {
 });
 
 // ---------------------------------------------------------------------------
+// Training plans
+// ---------------------------------------------------------------------------
+suite('plans', async ({ browser, baseUrl, t }) => {
+    const page = await newAppPage(browser, baseUrl);
+
+    // Registry integrity: adding a plan with a typo'd id, or adding a workout
+    // and forgetting to list it in a plan, both leave it unreachable.
+    const integrity = await page.evaluate(() => {
+        const unresolved = [];
+        const seen = {};
+        const duplicated = [];
+        Object.values(PLANS).forEach(plan => {
+            (plan.workouts || []).forEach(id => {
+                if (!getWorkout(id)) unresolved.push(`${plan.id} -> ${id}`);
+                if (seen[id]) duplicated.push(id); else seen[id] = true;
+            });
+            (plan.optionalWorkouts || []).forEach(id => {
+                if (!getOptionalWorkout(id)) unresolved.push(`${plan.id} -> ${id}`);
+                if (seen[id]) duplicated.push(id); else seen[id] = true;
+            });
+        });
+        const orphaned = [...Object.keys(WORKOUTS), ...Object.keys(OPTIONAL_WORKOUTS)]
+            .filter(id => !getPlanForWorkout(id));
+        return { unresolved, duplicated, orphaned };
+    });
+    t.equal(integrity.unresolved.length, 0, 'every workout id listed by a plan resolves', integrity.unresolved);
+    t.equal(integrity.duplicated.length, 0, 'no workout is claimed by two plans', integrity.duplicated);
+    t.equal(integrity.orphaned.length, 0, 'every defined workout belongs to a plan', integrity.orphaned);
+
+    // The home screen shows the active plan's workouts.
+    const home = await page.evaluate(() => ({
+        plan: AppState.currentPlan,
+        mainCards: [...document.querySelectorAll('#main-workout-grid .workout-card')].map(c => c.dataset.workoutId),
+        optionalCards: document.querySelectorAll('#optional-workout-grid .workout-card').length,
+        pickerHidden: document.getElementById('plan-picker').classList.contains('hidden'),
+        planCount: getAllPlans().length
+    }));
+    t.equal(home.plan, 'upper_lower', 'the default plan is active on first load');
+    t.equal(home.mainCards.join(','), getPlanIds(), 'the grid lists the active plan\'s workouts in order');
+    t.ok(home.optionalCards > 0, 'the plan\'s optional workouts render', home.optionalCards);
+    // A dropdown offering one choice is noise.
+    t.equal(home.pickerHidden, home.planCount < 2, 'the picker is hidden only while a single plan exists');
+
+    function getPlanIds() { return 'upper_a,lower_a,upper_b,lower_b'; }
+
+    // Ids must stay globally resolvable regardless of the active plan: they
+    // are written to the sheet and to localStorage history, so scoping them
+    // per plan would orphan every past workout.
+    const resolvable = await page.evaluate(() => ({
+        main: !!getWorkout('lower_b'),
+        optional: !!getOptionalWorkout('zone2_cardio')
+    }));
+    t.equal(resolvable.main, true, 'a main workout id resolves globally');
+    t.equal(resolvable.optional, true, 'an optional workout id resolves globally');
+
+    await page.close();
+});
+
+suite('plan switching', async ({ browser, baseUrl, t }) => {
+    const page = await newAppPage(browser, baseUrl);
+
+    // Register a second plan at runtime so the switching mechanism is tested
+    // independently of which plans happen to ship.
+    await page.evaluate(() => {
+        PLANS.test_plan = {
+            id: 'test_plan',
+            name: 'Test Plan',
+            description: 'A second plan',
+            focus: 'Testing',
+            workouts: ['upper_b'],
+            optionalWorkouts: []
+        };
+        UI.renderPlanPicker();
+    });
+
+    const picker = await page.evaluate(() => ({
+        hidden: document.getElementById('plan-picker').classList.contains('hidden'),
+        options: [...document.querySelectorAll('#plan-select option')].map(o => o.value)
+    }));
+    t.equal(picker.hidden, false, 'the picker appears once a second plan exists');
+    t.equal(picker.options.join(','), 'upper_lower,test_plan', 'the picker lists every plan', picker.options);
+
+    await page.evaluate(() => UI.setActivePlan('test_plan'));
+    const switched = await page.evaluate(() => ({
+        active: AppState.currentPlan,
+        cards: [...document.querySelectorAll('#main-workout-grid .workout-card')].map(c => c.dataset.workoutId),
+        persisted: localStorage.getItem('workout_tracker_active_plan'),
+        optionalHidden: document.querySelector('.optional-workouts-section').classList.contains('hidden'),
+        description: document.getElementById('plan-description').textContent.trim()
+    }));
+    t.equal(switched.active, 'test_plan', 'switching sets the active plan');
+    t.equal(switched.cards.join(','), 'upper_b', 'the grid shows only the new plan\'s workouts', switched.cards);
+    t.equal(switched.persisted, 'test_plan', 'the selection is persisted');
+    // Otherwise an empty "Optional Workouts" heading hangs below the grid.
+    t.equal(switched.optionalHidden, true, 'a plan with no optional workouts hides that section');
+    t.equal(switched.description, 'A second plan', 'the picker shows the active plan description');
+
+    // Starting a workout from the other plan must still work, since ids are global.
+    await startWorkout(page, 'upper_a');
+    const started = await page.evaluate(() => ({
+        onWorkout: document.getElementById('workout-view').classList.contains('active'),
+        title: document.getElementById('workout-title').textContent
+    }));
+    t.equal(started.onWorkout, true, 'a workout from another plan still starts');
+    t.ok(started.title.length > 0, 'its title resolves', started.title);
+
+    await page.close();
+});
+
+suite('plan selection survives reload', async ({ browser, baseUrl, t }) => {
+    const seed = function () {
+        localStorage.setItem('workout_tracker_active_plan', 'upper_lower');
+    };
+    const page = await newAppPage(browser, baseUrl, { seedLocalStorage: seed });
+    const restored = await page.evaluate(() => AppState.currentPlan);
+    t.equal(restored, 'upper_lower', 'a saved plan is restored on load');
+
+    // A plan removed from the code must not leave the home screen empty.
+    const stale = function () {
+        localStorage.setItem('workout_tracker_active_plan', 'plan_that_was_deleted');
+    };
+    const page2 = await newAppPage(browser, baseUrl, { seedLocalStorage: stale });
+    const fallback = await page2.evaluate(() => ({
+        plan: AppState.currentPlan,
+        cards: document.querySelectorAll('#main-workout-grid .workout-card').length,
+        rewritten: localStorage.getItem('workout_tracker_active_plan')
+    }));
+    t.equal(fallback.plan, 'upper_lower', 'a stale saved plan falls back to the default');
+    t.ok(fallback.cards > 0, 'the home screen still renders workouts', fallback.cards);
+    t.equal(fallback.rewritten, 'upper_lower', 'the stale selection is rewritten');
+    t.equal(page2.__errors.length, 0, 'a stale plan does not throw', page2.__errors);
+
+    await page.close();
+    await page2.close();
+});
+
+// ---------------------------------------------------------------------------
 // Total volume - a NaN here writes a blank cell to the Sheets summary
 // ---------------------------------------------------------------------------
 suite('total volume', async ({ browser, baseUrl, t }) => {

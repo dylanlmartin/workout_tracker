@@ -370,6 +370,66 @@ function getAllWorkouts() {
 }
 
 /**
+ * Training Plans
+ *
+ * A plan groups the workouts that belong to one programme. Adding a plan is a
+ * data-only change: list its workout ids here and it appears in the picker.
+ *
+ * Workout ids stay globally unique and are NOT namespaced by plan, because
+ * they are written to the Google Sheet's "Workout Type" column and stored in
+ * localStorage history. getWorkout()/getOptionalWorkout() therefore keep
+ * resolving any id regardless of which plan is selected, so history and an
+ * in-progress session survive a plan switch.
+ */
+const PLANS = {
+    upper_lower: {
+        id: 'upper_lower',
+        name: 'Upper/Lower Split',
+        description: '4-day upper/lower split with integrated conditioning',
+        focus: 'Hypertrophy & strength',
+        workouts: ['upper_a', 'lower_a', 'upper_b', 'lower_b'],
+        optionalWorkouts: ['quick_upper', 'zone2_cardio', 'core_mobility', 'upper_pump', 'lower_accessories']
+    }
+};
+
+const DEFAULT_PLAN_ID = 'upper_lower';
+
+/**
+ * Get a plan by id, falling back to the default so a stale saved selection
+ * (a plan removed from the code) cannot leave the home screen empty.
+ */
+function getPlan(planId) {
+    return PLANS[planId] || PLANS[DEFAULT_PLAN_ID] || null;
+}
+
+/** Every plan, for the picker. */
+function getAllPlans() {
+    return Object.values(PLANS);
+}
+
+/** The main workouts of a plan, in the order the plan lists them. */
+function getPlanWorkouts(planId) {
+    const plan = getPlan(planId);
+    if (!plan) return [];
+    return (plan.workouts || []).map(id => getWorkout(id)).filter(Boolean);
+}
+
+/** The optional workouts of a plan, in the order the plan lists them. */
+function getPlanOptionalWorkouts(planId) {
+    const plan = getPlan(planId);
+    if (!plan) return [];
+    return (plan.optionalWorkouts || []).map(id => getOptionalWorkout(id)).filter(Boolean);
+}
+
+/** Which plan a workout id belongs to, or null if it belongs to none. */
+function getPlanForWorkout(workoutId) {
+    return Object.values(PLANS).find(p =>
+        (p.workouts || []).includes(workoutId) ||
+        (p.optionalWorkouts || []).includes(workoutId)
+    ) || null;
+}
+
+/**
  * Parse rep range to get min and max values
  * Examples: "8-12" -> {min: 8, max: 12}, "30s" -> {min: 30, max: 30, unit: "s"}
  */
