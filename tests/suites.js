@@ -248,12 +248,25 @@ suite('lean bulk plan', async ({ browser, baseUrl, t }) => {
         return names.sort();
     });
     t.equal(adapted.join(' | '), [
-        'Cable Press (decline, neutral)',
         'Cable Reverse Fly',
         'Neutral-Grip DB Floor Press',
         'Neutral-Grip DB Press (Low Incline)',
         'Seated Neutral-Grip DB Press'
-    ].join(' | '), 'exactly the five adapted exercises are flagged in their notes', adapted);
+    ].join(' | '), 'exactly the four adapted exercises are flagged in their notes', adapted);
+
+    // The flies were restored at the user's request; the adapted cable press
+    // stays one tap away as a substitute for days the chest is sore.
+    const flies = await page.evaluate(() => {
+        const e = getWorkout('lb_chest').exercises.find(x => x.name === 'Dumbbell Chest Flys');
+        return {
+            present: !!e,
+            position: getWorkout('lb_chest').exercises.findIndex(x => x.name === 'Dumbbell Chest Flys'),
+            canSwapToPress: (getSubstitutions('Dumbbell Chest Flys')?.options || []).includes('Cable Press (decline, neutral)')
+        };
+    });
+    t.equal(flies.present, true, 'dumbbell chest flys are on chest day');
+    t.equal(flies.position, 1, 'in the position the source gives them');
+    t.equal(flies.canSwapToPress, true, 'the chest-safe cable press is offered as a substitute');
 
     // Cardio and the weak-point day must use the right exercise types.
     const types = await page.evaluate(() => ({

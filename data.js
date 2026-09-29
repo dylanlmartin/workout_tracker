@@ -1439,7 +1439,6 @@ function getAllOptionalWorkouts() {
  * notes so the change is visible in the app:
  *   - Incline Barbell Bench Press -> Neutral-Grip DB Press (Low Incline)
  *   - Flat Barbell Bench Press    -> Neutral-Grip DB Floor Press
- *   - Dumbbell Chest Flys         -> Cable Press (decline, neutral)
  *   - Seated Military Press       -> Seated Neutral-Grip DB Press
  *   - Bench Incline Rear Delt Fly -> Cable Reverse Fly
  * Everything else is as written in the source.
@@ -1459,11 +1458,11 @@ const LEAN_BULK_WORKOUTS = {
                 notes: 'ADAPTED from Incline Barbell Bench Press for chest safety. Warm up first: 12 reps at half weight, rest 1 min; 10 reps same weight slightly faster, rest 1 min; 6 reps at +5-10lbs. Week one use 8-12 reps. Palms face each other, elbows at ~45°.'
             },
             {
-                name: 'Cable Press (decline, neutral)',
+                name: 'Dumbbell Chest Flys',
                 sets: 4,
                 reps: '6-8',
-                rest: 120,
-                notes: 'ADAPTED from Dumbbell Chest Flys - a deep fly stretches the sternum under load. Week one use 8-12 reps. Neutral grip, stop before the chest feels stretched.'
+                rest: 90,
+                notes: 'Week one use 8-12 reps. Slight bend in the elbows, lower in a wide arc until you feel a stretch, then squeeze back up. Shorten the range if the sternum complains.'
             },
             {
                 name: 'Neutral-Grip DB Floor Press',
@@ -1750,6 +1749,16 @@ Object.assign(SUBSTITUTIONS, {
         notes: 'Keep a neutral grip and a shortened range. Never swap back to a barbell bench.'
     },
 
+    'Dumbbell Chest Flys': {
+        options: [
+            'Cable Press (decline, neutral)',
+            'Low cable crossover',
+            'Pec deck (limited range)',
+            'Light DB press (higher reps)'
+        ],
+        notes: 'If the stretch at the bottom bothers your chest, the cable press keeps the work without the deep stretch.'
+    },
+
     'Cable Crunches': {
         options: ['Toe touches', 'Lying leg raise', 'Reverse crunches', "Captain's chair knee raise"],
         notes: 'Pick one. The source allows more than one abdominal exercise on chest day if you have the energy.'
@@ -1863,5 +1872,7 @@ Object.assign(EXERCISE_INSTRUCTIONS, {
     'toe touches': 'Lie on your back, legs up, and reach for the toes by curling the shoulders off the floor. To failure.',
     'trap bar deadlift': 'Neutral grip inside the frame, chest up. Easier on the lower back than a straight bar.',
     'katana extension': 'Single cable across the body, elbow fixed and high. Extend to a full lockout, control the return.',
+    'cable press (decline, neutral)': 'Neutral grip, press down and across from a high anchor. Stop before the chest feels stretched.',
+    'pec deck (limited range)': 'Set the arms so the start position is short of a full stretch. Squeeze the handles together and control the return.',
     'supine dumbbell curl': 'Lie back on an incline bench and let the arms hang. The stretched start makes this harder than it looks - go light.'
 });
