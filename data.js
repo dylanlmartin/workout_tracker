@@ -1441,6 +1441,11 @@ function getAllOptionalWorkouts() {
  *   - Flat Barbell Bench Press    -> Neutral-Grip DB Floor Press
  *   - Seated Military Press       -> Seated Neutral-Grip DB Press
  *   - Bench Incline Rear Delt Fly -> Cable Reverse Fly
+ *
+ * Additions (not in the source, flagged ADDED on the card): Leg Curl and
+ * Standing Calf Raise on leg day, which otherwise had no knee-flexion
+ * hamstring work and nothing for calves.
+ *
  * Everything else is as written in the source.
  */
 const LEAN_BULK_WORKOUTS = {
@@ -1608,6 +1613,20 @@ const LEAN_BULK_WORKOUTS = {
                 reps: '6-8',
                 rest: 120,
                 notes: 'Week one use 8-12 reps. Hinge at the hips with a soft knee. Feel the stretch in the hamstrings, not the lower back.'
+            },
+            {
+                name: 'Leg Curl',
+                sets: 3,
+                reps: '8-12',
+                rest: 90,
+                notes: 'ADDED - not in the source, which has no knee-flexion hamstring work. 8-12 reps every week, like its other isolation work. Hips stay on the pad; control the return.'
+            },
+            {
+                name: 'Standing Calf Raise',
+                sets: 3,
+                reps: '8-12',
+                rest: 90,
+                notes: 'ADDED - not in the source, which has no calf work. 8-12 reps every week. Full stretch at the bottom, pause at the top, no bouncing.'
             },
             {
                 name: 'Zone 2 Cardio',

@@ -268,6 +268,27 @@ suite('lean bulk plan', async ({ browser, baseUrl, t }) => {
     t.equal(flies.position, 1, 'in the position the source gives them');
     t.equal(flies.canSwapToPress, true, 'the chest-safe cable press is offered as a substitute');
 
+    // Leg day was the thinnest day in the source: no knee-flexion hamstring
+    // work and nothing for calves. Both were added at the user's request and
+    // must say so on the card, like the adaptations do.
+    const legs = await page.evaluate(() => {
+        const ex = getWorkout('lb_legs').exercises;
+        const find = n => ex.find(e => e.name === n);
+        return {
+            names: ex.map(e => e.name),
+            curlAdded: /ADDED/.test(find('Leg Curl')?.notes || ''),
+            calfAdded: /ADDED/.test(find('Standing Calf Raise')?.notes || ''),
+            curlSubs: hasSubstitutions('Leg Curl'),
+            calfSubs: hasSubstitutions('Standing Calf Raise'),
+            cardioLast: ex[ex.length - 1].name === 'Zone 2 Cardio'
+        };
+    });
+    t.ok(legs.names.includes('Leg Curl'), 'leg day includes a hamstring curl', legs.names);
+    t.ok(legs.names.includes('Standing Calf Raise'), 'leg day includes calf work', legs.names);
+    t.equal(legs.curlAdded && legs.calfAdded, true, 'both additions are flagged as not from the source');
+    t.equal(legs.curlSubs && legs.calfSubs, true, 'both additions offer substitutions');
+    t.equal(legs.cardioLast, true, 'cardio still finishes the session');
+
     // Cardio and the weak-point day must use the right exercise types.
     const types = await page.evaluate(() => ({
         backCardio: getWorkout('lb_back').exercises.find(e => e.name === 'Zone 2 Cardio')?.exerciseType,
