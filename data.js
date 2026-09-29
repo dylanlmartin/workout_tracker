@@ -370,6 +370,74 @@ function getAllWorkouts() {
 }
 
 /**
+ * Training Plans
+ *
+ * A plan groups the workouts that belong to one programme. Adding a plan is a
+ * data-only change: list its workout ids here and it appears in the picker.
+ *
+ * Workout ids stay globally unique and are NOT namespaced by plan, because
+ * they are written to the Google Sheet's "Workout Type" column and stored in
+ * localStorage history. getWorkout()/getOptionalWorkout() therefore keep
+ * resolving any id regardless of which plan is selected, so history and an
+ * in-progress session survive a plan switch.
+ */
+const PLANS = {
+    upper_lower: {
+        id: 'upper_lower',
+        name: 'Upper/Lower Split',
+        description: '4-day upper/lower split with integrated conditioning',
+        focus: 'Hypertrophy & strength',
+        workouts: ['upper_a', 'lower_a', 'upper_b', 'lower_b'],
+        optionalWorkouts: ['quick_upper', 'zone2_cardio', 'core_mobility', 'upper_pump', 'lower_accessories']
+    },
+    lean_bulk: {
+        id: 'lean_bulk',
+        name: 'Lean Body / Lean Bulk',
+        description: '5-6 day muscle-group split, adapted for chest safety',
+        focus: 'Lean muscle',
+        workouts: ['lb_chest', 'lb_back', 'lb_shoulders', 'lb_legs', 'lb_arms'],
+        optionalWorkouts: ['lb_day6']
+    }
+};
+
+const DEFAULT_PLAN_ID = 'upper_lower';
+
+/**
+ * Get a plan by id, falling back to the default so a stale saved selection
+ * (a plan removed from the code) cannot leave the home screen empty.
+ */
+function getPlan(planId) {
+    return PLANS[planId] || PLANS[DEFAULT_PLAN_ID] || null;
+}
+
+/** Every plan, for the picker. */
+function getAllPlans() {
+    return Object.values(PLANS);
+}
+
+/** The main workouts of a plan, in the order the plan lists them. */
+function getPlanWorkouts(planId) {
+    const plan = getPlan(planId);
+    if (!plan) return [];
+    return (plan.workouts || []).map(id => getWorkout(id)).filter(Boolean);
+}
+
+/** The optional workouts of a plan, in the order the plan lists them. */
+function getPlanOptionalWorkouts(planId) {
+    const plan = getPlan(planId);
+    if (!plan) return [];
+    return (plan.optionalWorkouts || []).map(id => getOptionalWorkout(id)).filter(Boolean);
+}
+
+/** Which plan a workout id belongs to, or null if it belongs to none. */
+function getPlanForWorkout(workoutId) {
+    return Object.values(PLANS).find(p =>
+        (p.workouts || []).includes(workoutId) ||
+        (p.optionalWorkouts || []).includes(workoutId)
+    ) || null;
+}
+
+/**
  * Parse rep range to get min and max values
  * Examples: "8-12" -> {min: 8, max: 12}, "30s" -> {min: 30, max: 30, unit: "s"}
  */
@@ -1347,3 +1415,464 @@ function getOptionalWorkout(workoutId) {
 function getAllOptionalWorkouts() {
     return Object.values(OPTIONAL_WORKOUTS);
 }
+
+/**
+ * Lean Body / Lean Bulk - Advanced Regimen
+ *
+ * Source: BodyHealth, "Advanced Workout Regimen For Lean Body/Lean Bulk".
+ * 5-6 days per week, one muscle group per day, with abdominals or Zone 2
+ * cardio on alternating days. 4-6 exercises per day, 3-4 sets each.
+ *
+ * Reps: the source prescribes 6-8 after an introductory week at 8-12, except
+ * where it says "8-12 every week" (lateral raises, rear delt flys, all arm
+ * work). The week-one range is noted on each exercise rather than duplicating
+ * the whole plan.
+ *
+ * Rest: the source says 90 seconds to 3 minutes between sets, and 30 seconds
+ * for abdominal work. Compounds use 120s and accessories 90s - both inside
+ * that range, and chosen to keep sessions near this project's 60-75 minute
+ * target.
+ *
+ * Costochondritis adaptations (this programme is chest-pressing heavy, and
+ * the source's own choices conflict with the constraints in
+ * workout-tracker-spec.md). Each adapted exercise names its original in its
+ * notes so the change is visible in the app:
+ *   - Incline Barbell Bench Press -> Neutral-Grip DB Press (Low Incline)
+ *   - Flat Barbell Bench Press    -> Neutral-Grip DB Floor Press
+ *   - Seated Military Press       -> Seated Neutral-Grip DB Press
+ *   - Bench Incline Rear Delt Fly -> Cable Reverse Fly
+ * Everything else is as written in the source.
+ */
+const LEAN_BULK_WORKOUTS = {
+    lb_chest: {
+        id: 'lb_chest',
+        name: 'Chest Day',
+        description: 'Chest pressing plus abdominals',
+        focus: 'Hypertrophy',
+        exercises: [
+            {
+                name: 'Neutral-Grip DB Press (Low Incline)',
+                sets: 4,
+                reps: '6-8',
+                rest: 120,
+                notes: 'ADAPTED from Incline Barbell Bench Press for chest safety. Warm up first: 12 reps at half weight, rest 1 min; 10 reps same weight slightly faster, rest 1 min; 6 reps at +5-10lbs. Week one use 8-12 reps. Palms face each other, elbows at ~45°.'
+            },
+            {
+                name: 'Dumbbell Chest Flys',
+                sets: 4,
+                reps: '6-8',
+                rest: 90,
+                notes: 'Week one use 8-12 reps. Slight bend in the elbows, lower in a wide arc until you feel a stretch, then squeeze back up. Shorten the range if the sternum complains.'
+            },
+            {
+                name: 'Neutral-Grip DB Floor Press',
+                sets: 4,
+                reps: '6-8',
+                rest: 120,
+                notes: 'ADAPTED from Flat Barbell Bench Press for chest safety. The floor stops the descent, limiting range. Week one use 8-12 reps. Maintain scapular retraction.'
+            },
+            {
+                name: 'Cable Crunches',
+                sets: 3,
+                reps: '12',
+                rest: 30,
+                category: 'core',
+                notes: 'Pick one abdominal exercise (or more if you have the energy) - substitute for the alternatives. If you can do more than 12, add weight.'
+            }
+        ]
+    },
+
+    lb_back: {
+        id: 'lb_back',
+        name: 'Back Day',
+        description: 'Back work plus Zone 2 cardio',
+        focus: 'Hypertrophy',
+        exercises: [
+            {
+                name: 'Barbell Deadlift',
+                sets: 4,
+                reps: '6-8',
+                rest: 120,
+                notes: 'Two warm-up sets first. Week one use 8-12 reps. Hinge at the hips, bar close to the legs, neutral spine - never round the back to finish a rep.'
+            },
+            {
+                name: 'Dumbbell Row (Left Arm)',
+                sets: 3,
+                reps: '6-8',
+                rest: 90,
+                notes: 'Week one use 8-12 reps. Lead with the elbow, pull to the hip, keep the hips square.'
+            },
+            {
+                name: 'Dumbbell Row (Right Arm)',
+                sets: 3,
+                reps: '6-8',
+                rest: 90,
+                notes: 'Week one use 8-12 reps. Match the reps and weight you managed on the left.'
+            },
+            {
+                name: 'Close-Grip Lat Pulldown',
+                sets: 4,
+                reps: '6-8',
+                rest: 120,
+                notes: 'Week one use 8-12 reps. Chest tall, pull to the collarbone, no leaning back to move the weight.'
+            },
+            {
+                name: 'Weighted Hyper Extension',
+                sets: 3,
+                reps: '12',
+                rest: 90,
+                notes: 'Squeeze the glutes to raise the torso and stop at a straight line - do not hyperextend. Substitute for Supermans (15-20 reps) if no bench is free.'
+            },
+            {
+                name: 'Zone 2 Cardio',
+                exerciseType: 'duration',
+                sets: 1,
+                targetDuration: 10,
+                durationUnit: 'minutes',
+                reps: '10 min',
+                rest: 0,
+                category: 'cardio',
+                notes: 'Conversational pace - this is the fat-burning zone and will not cost you muscle. Incline treadmill walk, stair master, stationary bike or rower.'
+            }
+        ]
+    },
+
+    lb_shoulders: {
+        id: 'lb_shoulders',
+        name: 'Shoulders Day',
+        description: 'Shoulder work plus abdominals',
+        focus: 'Hypertrophy',
+        exercises: [
+            {
+                name: 'Seated Neutral-Grip DB Press',
+                sets: 4,
+                reps: '6-8',
+                rest: 120,
+                notes: 'ADAPTED from Seated Military Press - a neutral grip keeps load off the sternum. Two warm-up sets first. Week one use 8-12 reps. Ribs down, no lower-back arch. Drop the weight if the chest complains.'
+            },
+            {
+                name: 'Side Lateral Raise',
+                sets: 3,
+                reps: '8-12',
+                rest: 90,
+                notes: '8-12 reps every week, not just week one. Lead with the elbow and raise only to shoulder height.'
+            },
+            {
+                name: 'Arnold Press',
+                sets: 4,
+                reps: '6-8',
+                rest: 120,
+                notes: 'Week one use 8-12 reps. Use a partial rotation rather than a full turn, and stop if the sternum complains.'
+            },
+            {
+                name: 'Cable Reverse Fly',
+                sets: 3,
+                reps: '8-12',
+                rest: 90,
+                notes: 'ADAPTED from Bench Incline Rear Delt Flys - lying chest-down presses the sternum into the pad. 8-12 reps every week. Slight elbow bend, open wide, keep the traps relaxed.'
+            },
+            {
+                name: 'Cable Crunches',
+                sets: 3,
+                reps: '12',
+                rest: 30,
+                category: 'core',
+                notes: 'Pick one abdominal exercise - substitute for the alternatives. If you can do more than 12, add weight.'
+            }
+        ]
+    },
+
+    lb_legs: {
+        id: 'lb_legs',
+        name: 'Leg Day',
+        description: 'Legs plus Zone 2 cardio',
+        focus: 'Hypertrophy',
+        exercises: [
+            {
+                name: 'Barbell Front Squat',
+                sets: 4,
+                reps: '6-8',
+                rest: 120,
+                notes: 'Two warm-up sets first. Week one use 8-12 reps. Substitute for a Goblet Squat if the front rack bothers your chest or wrists. Chest up, knees tracking over the toes.'
+            },
+            {
+                name: 'Split Squat',
+                sets: 3,
+                reps: '6-8/leg',
+                rest: 90,
+                notes: 'Week one use 8-12 reps per leg. Goblet hold or dumbbells at your sides. Drop the back knee straight down rather than leaning forward.'
+            },
+            {
+                name: 'Romanian Deadlift',
+                sets: 4,
+                reps: '6-8',
+                rest: 120,
+                notes: 'Week one use 8-12 reps. Hinge at the hips with a soft knee. Feel the stretch in the hamstrings, not the lower back.'
+            },
+            {
+                name: 'Zone 2 Cardio',
+                exerciseType: 'duration',
+                sets: 1,
+                targetDuration: 10,
+                durationUnit: 'minutes',
+                reps: '10 min',
+                rest: 0,
+                category: 'cardio',
+                notes: 'Conversational pace. Incline treadmill walk, stair master, stationary bike or rower.'
+            }
+        ]
+    },
+
+    lb_arms: {
+        id: 'lb_arms',
+        name: 'Arms Day',
+        description: 'Biceps and triceps plus abdominals',
+        focus: 'Hypertrophy',
+        exercises: [
+            {
+                name: 'Barbell Curl',
+                sets: 3,
+                reps: '8-12',
+                rest: 90,
+                notes: '8-12 reps every week. Two warm-up sets before the first biceps exercise. Elbows pinned at the sides, no swinging. Substitute for a supine dumbbell curl if the bar bothers your wrists.'
+            },
+            {
+                name: 'Hammer Curls',
+                sets: 3,
+                reps: '8-12',
+                rest: 90,
+                notes: '8-12 reps every week. Neutral grip, thumbs up, elbows still.'
+            },
+            {
+                name: 'Preacher Curl',
+                sets: 3,
+                reps: '8-12',
+                rest: 90,
+                notes: '8-12 reps every week. Upper arms flat on the pad, control the lowering all the way.'
+            },
+            {
+                name: 'Seated Triceps Press',
+                sets: 3,
+                reps: '8-12',
+                rest: 90,
+                notes: '8-12 reps every week. Two warm-up sets before the first triceps exercise. Elbows high and close to the head.'
+            },
+            {
+                name: 'Crossover Cable Extension',
+                sets: 3,
+                reps: '8-12',
+                rest: 90,
+                notes: '8-12 reps every week. Elbows fixed, press to full extension and control the return.'
+            },
+            {
+                name: 'Skull Crushers',
+                sets: 3,
+                reps: '8-12',
+                rest: 90,
+                notes: '8-12 reps every week. Lower to the forehead with the elbows pointing up. Substitute for a Katana extension if the elbows object.'
+            },
+            {
+                name: 'Cable Crunches',
+                sets: 3,
+                reps: '12',
+                rest: 30,
+                category: 'core',
+                notes: 'Pick one abdominal exercise - substitute for the alternatives. If you can do more than 12, add weight.'
+            }
+        ]
+    }
+};
+
+/**
+ * Optional sixth day. The source leaves its content up to you - weak points
+ * plus optional cardio - so nothing specific is prescribed here.
+ */
+const LEAN_BULK_OPTIONAL_WORKOUTS = {
+    lb_day6: {
+        id: 'lb_day6',
+        name: 'Optional Day 6',
+        description: 'Weak-point work and optional cardio',
+        duration: '30-45 minutes',
+        purpose: 'Bring up lagging muscles; optional extra cardio',
+        bestFor: 'Only when you genuinely have energy to spare',
+        isOptional: true,
+        exercises: [
+            {
+                name: 'Weak-Point Work',
+                exerciseType: 'completion',
+                sets: 1,
+                reps: 'Your choice of exercises',
+                rest: 0,
+                notes: 'The source does not prescribe exercises here - pick whatever muscles you feel are behind. Skip this day entirely if you are tired; do not overtrain.'
+            },
+            {
+                name: 'Optional Cardio',
+                exerciseType: 'duration',
+                sets: 1,
+                targetDuration: 20,
+                durationUnit: 'minutes',
+                reps: '20 min',
+                rest: 0,
+                category: 'cardio',
+                notes: 'Only if you have energy to spare. Extra cardio beyond Zone 2 can work against a lean bulk.'
+            }
+        ],
+        notes: [
+            'Optional - the programme works as five days',
+            'Expect to be hungrier if you add this day; eat accordingly',
+            'Skip it if you are run down, and stop entirely if you get ill'
+        ]
+    }
+};
+
+// Merge into the global registries. Ids stay globally resolvable so history,
+// the Sheets log and an in-progress session work across plans.
+Object.assign(WORKOUTS, LEAN_BULK_WORKOUTS);
+Object.assign(OPTIONAL_WORKOUTS, LEAN_BULK_OPTIONAL_WORKOUTS);
+
+/**
+ * Substitutions and form cues for the Lean Body/Lean Bulk plan.
+ *
+ * Merged rather than inlined above so the whole plan stays in one block.
+ * Options reuse names already present in EXERCISE_INSTRUCTIONS wherever
+ * possible; the few genuinely new movements get cues below.
+ */
+Object.assign(SUBSTITUTIONS, {
+    'Neutral-Grip DB Press (Low Incline)': {
+        options: [
+            'Landmine press',
+            'Neutral-grip DB press on flat bench (limited ROM)',
+            'Machine press (neutral grip if available)',
+            'Light DB press (higher reps)'
+        ],
+        avoid: ['Barbell bench press', 'Wide-grip pressing variations', 'Full range dips'],
+        notes: 'Keep a neutral grip and a shortened range. Never swap back to a barbell bench.'
+    },
+
+    'Dumbbell Chest Flys': {
+        options: [
+            'Cable Press (decline, neutral)',
+            'Low cable crossover',
+            'Pec deck (limited range)',
+            'Light DB press (higher reps)'
+        ],
+        notes: 'If the stretch at the bottom bothers your chest, the cable press keeps the work without the deep stretch.'
+    },
+
+    'Cable Crunches': {
+        options: ['Toe touches', 'Lying leg raise', 'Reverse crunches', "Captain's chair knee raise"],
+        notes: 'Pick one. The source allows more than one abdominal exercise on chest day if you have the energy.'
+    },
+
+    'Barbell Deadlift': {
+        options: ['Trap bar deadlift', 'Romanian deadlift', 'Dumbbell RDL (easier to control)', 'Back extension'],
+        notes: 'Stop the set when the back starts to round, not when the legs give out.'
+    },
+
+    'Dumbbell Row (Left Arm)': {
+        options: ['Chest-supported DB row', 'Single-arm cable row', 'Seal row', 'T-bar row'],
+        notes: 'Match whatever you do on the right arm.'
+    },
+
+    'Dumbbell Row (Right Arm)': {
+        options: ['Chest-supported DB row', 'Single-arm cable row', 'Seal row', 'T-bar row'],
+        notes: 'Match whatever you did on the left arm.'
+    },
+
+    'Close-Grip Lat Pulldown': {
+        options: ['Lat pulldown (any machine)', 'Pull-ups or chin-ups', 'Assisted pull-ups', 'Single-arm cable pulldown'],
+        notes: 'A close, neutral grip is easiest on the shoulders.'
+    },
+
+    'Weighted Hyper Extension': {
+        options: ['Superman hold', 'Back extension', 'Good mornings (bodyweight)'],
+        notes: 'The source offers Supermans at 15-20 reps as the alternative.'
+    },
+
+    'Zone 2 Cardio': {
+        options: ['Incline treadmill walk', 'Stair master', 'Stationary bike', 'Rowing machine (lower intensity)'],
+        notes: 'Any of these is fine - stay conversational so it does not eat into recovery.'
+    },
+
+    'Seated Neutral-Grip DB Press': {
+        options: ['Landmine press', 'Machine shoulder press', 'Arnold press (partial rotation)', 'Seated DB press'],
+        avoid: ['Heavy barbell military press'],
+        notes: 'Neutral or partially rotated grips keep load off the sternum. Drop the weight if the chest flares.'
+    },
+
+    'Side Lateral Raise': {
+        options: ['Cable lateral raise', 'Machine lateral raise', 'Single-arm DB lateral raise', 'Band lateral raises'],
+        notes: 'Raise to shoulder height only - higher brings the traps in.'
+    },
+
+    'Arnold Press': {
+        options: ['Seated DB press', 'Machine shoulder press', 'Landmine press'],
+        notes: 'Use a partial rotation. Stop if the sternum complains.'
+    },
+
+    'Cable Reverse Fly': {
+        options: ['Machine reverse fly', 'Reverse cable fly', 'Prone DB reverse fly', 'Band face pulls'],
+        notes: 'Avoid lying chest-down on a bench if that presses uncomfortably on the sternum.'
+    },
+
+    'Barbell Front Squat': {
+        options: [
+            'Goblet squat (lighter load, good for hypertrophy)',
+            'Safety bar squat (reduced thoracic stress)',
+            'Hack squat machine',
+            'Leg press (not ideal, but acceptable)'
+        ],
+        notes: 'The source offers a goblet squat as the alternative. Swap if the front rack presses on the chest or wrists.'
+    },
+
+    'Split Squat': {
+        options: [
+            'Regular split squat (both feet on ground)',
+            'Rear foot elevated split squat with support',
+            'Single-leg leg press',
+            'Walking lunges'
+        ],
+        notes: 'Hold a rail if balance is the limiting factor rather than the legs.'
+    },
+
+    'Barbell Curl': {
+        options: ['Supine dumbbell curl', 'EZ-bar curls', 'Cable curls', 'Neutral-grip DB curls'],
+        notes: 'The source offers a supine dumbbell curl as the alternative.'
+    },
+
+    'Preacher Curl': {
+        options: ['EZ-bar curls', 'Cable curls', 'Standard bicep curls (straight sets)', 'Neutral-grip DB curls'],
+        notes: 'Keep the upper arms flat on the pad and control the lowering.'
+    },
+
+    'Seated Triceps Press': {
+        options: ['DB overhead extension', 'Overhead cable extension', 'Rope pushdowns'],
+        notes: 'Elbows stay high and close to the head.'
+    },
+
+    'Crossover Cable Extension': {
+        options: ['Rope pushdowns', 'V-bar pushdowns', 'Single-arm pushdowns', 'Overhead cable extension'],
+        notes: 'Elbows pinned - the movement is at the elbow only.'
+    },
+
+    'Skull Crushers': {
+        options: ['Katana extension', 'DB overhead extension', 'Close-grip bench press', 'Overhead cable extension'],
+        notes: 'The source offers a Katana extension as the alternative. Swap if the elbows object.'
+    },
+
+    'Optional Cardio': {
+        options: ['Incline treadmill walk', 'Stair master', 'Stationary bike', 'Rowing machine (lower intensity)'],
+        notes: 'Only if you have energy to spare - extra cardio can work against a lean bulk.'
+    }
+});
+
+Object.assign(EXERCISE_INSTRUCTIONS, {
+    'stair master': 'Stand tall, no leaning on the rails. Conversational pace - this is Zone 2, not a climb for time.',
+    'stationary bike': 'Zone 2 - steady, conversational effort. Set resistance so the legs work without burning.',
+    'toe touches': 'Lie on your back, legs up, and reach for the toes by curling the shoulders off the floor. To failure.',
+    'trap bar deadlift': 'Neutral grip inside the frame, chest up. Easier on the lower back than a straight bar.',
+    'katana extension': 'Single cable across the body, elbow fixed and high. Extend to a full lockout, control the return.',
+    'cable press (decline, neutral)': 'Neutral grip, press down and across from a high anchor. Stop before the chest feels stretched.',
+    'pec deck (limited range)': 'Set the arms so the start position is short of a full stretch. Squeeze the handles together and control the return.',
+    'supine dumbbell curl': 'Lie back on an incline bench and let the arms hang. The stretched start makes this harder than it looks - go light.'
+});

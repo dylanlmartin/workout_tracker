@@ -56,6 +56,311 @@ suite('workout data', async ({ browser, baseUrl, t }) => {
 });
 
 // ---------------------------------------------------------------------------
+// Training plans
+// ---------------------------------------------------------------------------
+suite('plans', async ({ browser, baseUrl, t }) => {
+    const page = await newAppPage(browser, baseUrl);
+
+    // Registry integrity: adding a plan with a typo'd id, or adding a workout
+    // and forgetting to list it in a plan, both leave it unreachable.
+    const integrity = await page.evaluate(() => {
+        const unresolved = [];
+        const seen = {};
+        const duplicated = [];
+        Object.values(PLANS).forEach(plan => {
+            (plan.workouts || []).forEach(id => {
+                if (!getWorkout(id)) unresolved.push(`${plan.id} -> ${id}`);
+                if (seen[id]) duplicated.push(id); else seen[id] = true;
+            });
+            (plan.optionalWorkouts || []).forEach(id => {
+                if (!getOptionalWorkout(id)) unresolved.push(`${plan.id} -> ${id}`);
+                if (seen[id]) duplicated.push(id); else seen[id] = true;
+            });
+        });
+        const orphaned = [...Object.keys(WORKOUTS), ...Object.keys(OPTIONAL_WORKOUTS)]
+            .filter(id => !getPlanForWorkout(id));
+        return { unresolved, duplicated, orphaned };
+    });
+    t.equal(integrity.unresolved.length, 0, 'every workout id listed by a plan resolves', integrity.unresolved);
+    t.equal(integrity.duplicated.length, 0, 'no workout is claimed by two plans', integrity.duplicated);
+    t.equal(integrity.orphaned.length, 0, 'every defined workout belongs to a plan', integrity.orphaned);
+
+    // The home screen shows the active plan's workouts.
+    const home = await page.evaluate(() => ({
+        plan: AppState.currentPlan,
+        mainCards: [...document.querySelectorAll('#main-workout-grid .workout-card')].map(c => c.dataset.workoutId),
+        optionalCards: document.querySelectorAll('#optional-workout-grid .workout-card').length,
+        pickerHidden: document.getElementById('plan-picker').classList.contains('hidden'),
+        planCount: getAllPlans().length
+    }));
+    t.equal(home.plan, 'upper_lower', 'the default plan is active on first load');
+    t.equal(home.mainCards.join(','), getPlanIds(), 'the grid lists the active plan\'s workouts in order');
+    t.ok(home.optionalCards > 0, 'the plan\'s optional workouts render', home.optionalCards);
+    // A dropdown offering one choice is noise.
+    t.equal(home.pickerHidden, home.planCount < 2, 'the picker is hidden only while a single plan exists');
+
+    function getPlanIds() { return 'upper_a,lower_a,upper_b,lower_b'; }
+
+    // Ids must stay globally resolvable regardless of the active plan: they
+    // are written to the sheet and to localStorage history, so scoping them
+    // per plan would orphan every past workout.
+    const resolvable = await page.evaluate(() => ({
+        main: !!getWorkout('lower_b'),
+        optional: !!getOptionalWorkout('zone2_cardio')
+    }));
+    t.equal(resolvable.main, true, 'a main workout id resolves globally');
+    t.equal(resolvable.optional, true, 'an optional workout id resolves globally');
+
+    await page.close();
+});
+
+suite('plan switching', async ({ browser, baseUrl, t }) => {
+    const page = await newAppPage(browser, baseUrl);
+
+    // Register a second plan at runtime so the switching mechanism is tested
+    // independently of which plans happen to ship.
+    await page.evaluate(() => {
+        PLANS.test_plan = {
+            id: 'test_plan',
+            name: 'Test Plan',
+            description: 'A second plan',
+            focus: 'Testing',
+            workouts: ['upper_b'],
+            optionalWorkouts: []
+        };
+        UI.renderPlanPicker();
+    });
+
+    const picker = await page.evaluate(() => ({
+        hidden: document.getElementById('plan-picker').classList.contains('hidden'),
+        options: [...document.querySelectorAll('#plan-select option')].map(o => o.value)
+    }));
+    t.equal(picker.hidden, false, 'the picker appears once a second plan exists');
+    // Asserted against the live registry rather than a hardcoded list, so
+    // adding a plan does not falsely fail this.
+    const planIds = await page.evaluate(() => getAllPlans().map(p => p.id));
+    t.equal(picker.options.join(','), planIds.join(','), 'the picker lists every plan', picker.options);
+    t.ok(picker.options.includes('test_plan'), 'including one registered at runtime', picker.options);
+
+    await page.evaluate(() => UI.setActivePlan('test_plan'));
+    const switched = await page.evaluate(() => ({
+        active: AppState.currentPlan,
+        cards: [...document.querySelectorAll('#main-workout-grid .workout-card')].map(c => c.dataset.workoutId),
+        persisted: localStorage.getItem('workout_tracker_active_plan'),
+        optionalHidden: document.querySelector('.optional-workouts-section').classList.contains('hidden'),
+        description: document.getElementById('plan-description').textContent.trim()
+    }));
+    t.equal(switched.active, 'test_plan', 'switching sets the active plan');
+    t.equal(switched.cards.join(','), 'upper_b', 'the grid shows only the new plan\'s workouts', switched.cards);
+    t.equal(switched.persisted, 'test_plan', 'the selection is persisted');
+    // Otherwise an empty "Optional Workouts" heading hangs below the grid.
+    t.equal(switched.optionalHidden, true, 'a plan with no optional workouts hides that section');
+    t.equal(switched.description, 'A second plan', 'the picker shows the active plan description');
+
+    // Starting a workout from the other plan must still work, since ids are global.
+    await startWorkout(page, 'upper_a');
+    const started = await page.evaluate(() => ({
+        onWorkout: document.getElementById('workout-view').classList.contains('active'),
+        title: document.getElementById('workout-title').textContent
+    }));
+    t.equal(started.onWorkout, true, 'a workout from another plan still starts');
+    t.ok(started.title.length > 0, 'its title resolves', started.title);
+
+    await page.close();
+});
+
+suite('plan selection survives reload', async ({ browser, baseUrl, t }) => {
+    const seed = function () {
+        localStorage.setItem('workout_tracker_active_plan', 'upper_lower');
+    };
+    const page = await newAppPage(browser, baseUrl, { seedLocalStorage: seed });
+    const restored = await page.evaluate(() => AppState.currentPlan);
+    t.equal(restored, 'upper_lower', 'a saved plan is restored on load');
+
+    // A plan removed from the code must not leave the home screen empty.
+    const stale = function () {
+        localStorage.setItem('workout_tracker_active_plan', 'plan_that_was_deleted');
+    };
+    const page2 = await newAppPage(browser, baseUrl, { seedLocalStorage: stale });
+    const fallback = await page2.evaluate(() => ({
+        plan: AppState.currentPlan,
+        cards: document.querySelectorAll('#main-workout-grid .workout-card').length,
+        rewritten: localStorage.getItem('workout_tracker_active_plan')
+    }));
+    t.equal(fallback.plan, 'upper_lower', 'a stale saved plan falls back to the default');
+    t.ok(fallback.cards > 0, 'the home screen still renders workouts', fallback.cards);
+    t.equal(fallback.rewritten, 'upper_lower', 'the stale selection is rewritten');
+    t.equal(page2.__errors.length, 0, 'a stale plan does not throw', page2.__errors);
+
+    await page.close();
+    await page2.close();
+});
+
+// ---------------------------------------------------------------------------
+// Lean Body / Lean Bulk plan
+// ---------------------------------------------------------------------------
+suite('lean bulk plan', async ({ browser, baseUrl, t }) => {
+    const page = await newAppPage(browser, baseUrl);
+
+    const plan = await page.evaluate(() => ({
+        days: getPlanWorkouts('lean_bulk').map(w => w.name),
+        optional: getPlanOptionalWorkouts('lean_bulk').map(w => w.name),
+        counts: getPlanWorkouts('lean_bulk').map(w => w.exercises.length)
+    }));
+    t.equal(plan.days.join(', '), 'Chest Day, Back Day, Shoulders Day, Leg Day, Arms Day',
+        'the plan has the five training days from the source', plan.days);
+    t.equal(plan.optional.join(', '), 'Optional Day 6', 'the optional sixth day is present', plan.optional);
+    // The source specifies 4-6 exercises per day.
+    t.ok(plan.counts.every(c => c >= 4 && c <= 7), 'each day has a sensible exercise count', plan.counts);
+
+    // The programme is chest-pressing heavy and the source's own choices
+    // conflict with the costochondritis constraints in the spec. Nothing in
+    // the plan may be a flat or incline barbell bench press, or a dip.
+    const unsafe = await page.evaluate(() => {
+        const banned = [/barbell bench/i, /\bdips?\b/i, /wide.grip press/i];
+        const found = [];
+        ['lb_chest', 'lb_back', 'lb_shoulders', 'lb_legs', 'lb_arms', 'lb_day6'].forEach(id => {
+            const w = getWorkout(id) || getOptionalWorkout(id);
+            w.exercises.forEach(e => {
+                if (banned.some(re => re.test(e.name))) found.push(`${id}: ${e.name}`);
+            });
+            // Substitution options are one tap away, so they count too.
+            w.exercises.forEach(e => {
+                const subs = getSubstitutions(e.name);
+                (subs?.options || []).forEach(o => {
+                    if (banned.some(re => re.test(o))) found.push(`${id}: ${e.name} -> ${o}`);
+                });
+            });
+        });
+        return found;
+    });
+    t.equal(unsafe.length, 0, 'no barbell bench press or dip is reachable in the plan', unsafe);
+
+    // Adapted exercises must say so on the card, so the change is visible in
+    // the app rather than buried in a commit message.
+    const adapted = await page.evaluate(() => {
+        const names = [];
+        ['lb_chest', 'lb_back', 'lb_shoulders', 'lb_legs', 'lb_arms'].forEach(id => {
+            getWorkout(id).exercises.forEach(e => {
+                if (/ADAPTED/.test(e.notes || '')) names.push(e.name);
+            });
+        });
+        return names.sort();
+    });
+    t.equal(adapted.join(' | '), [
+        'Cable Reverse Fly',
+        'Neutral-Grip DB Floor Press',
+        'Neutral-Grip DB Press (Low Incline)',
+        'Seated Neutral-Grip DB Press'
+    ].join(' | '), 'exactly the four adapted exercises are flagged in their notes', adapted);
+
+    // The flies were restored at the user's request; the adapted cable press
+    // stays one tap away as a substitute for days the chest is sore.
+    const flies = await page.evaluate(() => {
+        const e = getWorkout('lb_chest').exercises.find(x => x.name === 'Dumbbell Chest Flys');
+        return {
+            present: !!e,
+            position: getWorkout('lb_chest').exercises.findIndex(x => x.name === 'Dumbbell Chest Flys'),
+            canSwapToPress: (getSubstitutions('Dumbbell Chest Flys')?.options || []).includes('Cable Press (decline, neutral)')
+        };
+    });
+    t.equal(flies.present, true, 'dumbbell chest flys are on chest day');
+    t.equal(flies.position, 1, 'in the position the source gives them');
+    t.equal(flies.canSwapToPress, true, 'the chest-safe cable press is offered as a substitute');
+
+    // Cardio and the weak-point day must use the right exercise types.
+    const types = await page.evaluate(() => ({
+        backCardio: getWorkout('lb_back').exercises.find(e => e.name === 'Zone 2 Cardio')?.exerciseType,
+        legCardio: getWorkout('lb_legs').exercises.find(e => e.name === 'Zone 2 Cardio')?.exerciseType,
+        weakPoint: getOptionalWorkout('lb_day6').exercises[0].exerciseType,
+        cardioRest: getWorkout('lb_back').exercises.find(e => e.name === 'Zone 2 Cardio')?.rest
+    }));
+    t.equal(types.backCardio, 'duration', 'back day cardio is a duration exercise');
+    t.equal(types.legCardio, 'duration', 'leg day cardio is a duration exercise');
+    t.equal(types.weakPoint, 'completion', 'weak-point work is a completion exercise');
+    t.equal(types.cardioRest, 0, 'cardio has no rest timer');
+
+    // Rest periods must sit inside the source's 90s-3min window (30s for abs).
+    const rests = await page.evaluate(() => {
+        const bad = [];
+        ['lb_chest', 'lb_back', 'lb_shoulders', 'lb_legs', 'lb_arms'].forEach(id => {
+            getWorkout(id).exercises.forEach(e => {
+                if (e.rest === 0) return; // cardio
+                if (e.category === 'core') {
+                    if (e.rest !== 30) bad.push(`${id}: ${e.name} abs rest ${e.rest}`);
+                } else if (e.rest < 90 || e.rest > 180) {
+                    bad.push(`${id}: ${e.name} rest ${e.rest}`);
+                }
+            });
+        });
+        return bad;
+    });
+    t.equal(rests.length, 0, 'rest periods sit inside the range the source prescribes', rests);
+
+    await page.close();
+});
+
+suite('lean bulk plan is usable', async ({ browser, baseUrl, t }) => {
+    const page = await newAppPage(browser, baseUrl);
+    await page.evaluate(() => UI.setActivePlan('lean_bulk'));
+
+    const grid = await page.evaluate(() => ({
+        cards: [...document.querySelectorAll('#main-workout-grid .workout-card')].map(c => c.dataset.workoutId),
+        optional: [...document.querySelectorAll('#optional-workout-grid .workout-card')].map(c => c.dataset.workoutId)
+    }));
+    t.equal(grid.cards.join(','), 'lb_chest,lb_back,lb_shoulders,lb_legs,lb_arms',
+        'selecting the plan shows its five days', grid.cards);
+    t.equal(grid.optional.join(','), 'lb_day6', 'and its optional day', grid.optional);
+
+    // Chest day exercises the reps path and the substitution button.
+    await startWorkout(page, 'lb_chest');
+    await completeRepsSet(page, 0, 1, 8, 50);
+    const chest = await page.evaluate(() => ({
+        sets: AppState.workoutData[0].sets.length,
+        heading: document.querySelector('[data-exercise-index="0"] h3').textContent.trim(),
+        hasSubstitute: !!document.querySelector('[data-exercise-index="0"] .btn-substitute'),
+        notes: document.querySelector('[data-exercise-index="0"] .exercise-notes').textContent.trim()
+    }));
+    t.equal(chest.sets, 1, 'a set records on the new plan');
+    t.equal(chest.heading, 'Neutral-Grip DB Press (Low Incline)', 'the adapted press leads chest day');
+    t.equal(chest.hasSubstitute, true, 'the adapted press offers substitutions');
+    t.ok(/ADAPTED/.test(chest.notes), 'the card shows why it was adapted', chest.notes);
+
+    // Back day exercises the duration path.
+    const page2 = await newAppPage(browser, baseUrl);
+    await startWorkout(page2, 'lb_back');
+    const cardioIdx = await page2.evaluate(() =>
+        getWorkout('lb_back').exercises.findIndex(e => e.name === 'Zone 2 Cardio'));
+    await completeDurationSet(page2, cardioIdx, 1, 10);
+    const cardio = await page2.evaluate(idx => ({
+        sets: AppState.workoutData[idx].sets.length,
+        reps: AppState.workoutData[idx].sets[0]?.reps,
+        timerVisible: !document.getElementById('rest-timer').classList.contains('hidden')
+    }), cardioIdx);
+    t.equal(cardio.sets, 1, 'the cardio block records as a duration set');
+    t.equal(cardio.reps, '10min', 'it records minutes, not seconds', cardio.reps);
+    t.equal(cardio.timerVisible, false, 'no rest timer follows the cardio block');
+
+    // Day 6 exercises the completion path.
+    const page3 = await newAppPage(browser, baseUrl);
+    await startWorkout(page3, 'lb_day6', true);
+    await page3.evaluate(() => {
+        const cb = document.querySelector('[data-exercise-index="0"] .completion-checkbox');
+        cb.checked = true;
+        cb.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    const day6 = await page3.evaluate(() => AppState.workoutData[0].sets.length);
+    t.equal(day6, 1, 'weak-point work records as completed');
+
+    t.equal(page.__errors.length + page2.__errors.length + page3.__errors.length, 0,
+        'no errors running the new plan', [...page.__errors, ...page2.__errors, ...page3.__errors]);
+
+    await page.close();
+    await page2.close();
+    await page3.close();
+});
+
+// ---------------------------------------------------------------------------
 // Total volume - a NaN here writes a blank cell to the Sheets summary
 // ---------------------------------------------------------------------------
 suite('total volume', async ({ browser, baseUrl, t }) => {
